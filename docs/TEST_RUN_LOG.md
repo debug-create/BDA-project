@@ -1,43 +1,45 @@
-# Test evidence: SYNTHETIC / LOCAL ONLY
+# Test and execution evidence
 
-Environment: pyspark 3.5.9 (same version as the cluster), Python 3.11, OpenJDK 21, `local[2]`, 8 GB sandbox, **2 GB driver heap**.
-No real BTS data, no YARN, no HDFS, no 512 MB executors. These runs show code-level properties only; they say nothing
-about model quality or about runtime and memory on 1.77 M rows.
+Run date: 2026-10-30. Spark 3.5.9, Hadoop 3.4.3, Java 11, Docker Desktop, one YARN ResourceManager and two registered NodeManagers/DataNodes.
 
-Files tested (md5): `src/03_ml.py` de4aac247a0873db6938b316c3b063da,
-`src/tests/test_ml_pipeline.py` 93f26154fc9b48443288b0b8a1abad61 (hashes were checked unchanged after the run).
+Final SHA-256: `src/03_ml.py` = `F89483358D1A2FBD7AEE4F1EB231D69D6C9658E7F72BDE972D56235BC708291B`; `src/tests/test_ml_pipeline.py` = `9702AA70B10BFA906DB94BAD44911489B7B474577C9FEAAC3C8631C01BC207EC`.
 
-## Final run: 24 of 24 tests passed (single uninterrupted invocation, about 30 minutes)
-`ML_PIPELINE_TESTS_STATUS=PASSED`, plus `TEMPORAL_HISTORY_TEST_STATUS=PASSED` for `test_temporal_history_features.py`.
+## Synthetic correctness suite
 
-Unit (21): minute-of-day parsing incl. 2400; split windows equal the agreed baseline windows; schema type check;
-eligibility categories exclusive and summing to the input; leakage guard and feature provenance (all specs);
-past-only property over every date (all-earlier and trailing windows); the property check flags a deliberately leaky
-leave-one-day-out design; key isolation and first-day fallback; exact trailing-window values; frozen-table application
-with unseen keys; scheduled-demand counts include cancelled flights and joins preserve rows; threshold search and
-confusion counts; warm-up rows excluded but kept as history; namespace safety and production guard; **extended and
-short-memory history groups are past-only and row-preserving; recent group uses only the last N earlier dates;
-destination-hour / origin-day / previous-hour demand and scheduled speed have hand-computed values and null block time is
-imputed; combining feature specs; unsupported extra model name rejected.**
+Synthetic tests verify code properties; they are not evidence of predictive performance. They ran in the project container with `local[2]` and a 2 GB driver:
 
-Integration (3 + 2 on synthetic parquet in local mode): select mode never reads the test window and gives identical
-decisions when only test labels change (all ten feature experiments); all mode freezes decisions before the test is
-scored, reconciles counts, writes the documented files and saved models; failure is reported as FAILED with exit code 2;
-**all four model families (LR, RF, GBT, MLP) are tuned on validation, thresholded, refit, scored once on the test window,
-saved, appear in every result table, and their frozen choices do not change when only test labels change.**
+- `TEMPORAL_HISTORY_TEST_STATUS=PASSED` from `src/tests/test_temporal_history_features.py`.
+- All 19 unit components in `src/tests/test_ml_pipeline.py` passed.
+- `test_select_mode_never_reads_test_and_is_invariant_to_test_labels` passed in 456.4 seconds, including two ten-experiment runs with altered test labels.
+- `test_all_mode_reconciles_and_freezes_before_test` passed in 180.7 seconds.
+- Failure-status and unsupported-model reporting tests passed.
+- `test_extra_models_full_pipeline_and_decision_invariance` passed in 267.1 seconds, exercising LR, RF, GBT and MLP on synthetic data.
 
-## Failures met on the way
-1. Earlier sessions: Java heap exhaustion in a 1 GB local driver; fixed by capping Spark job/UI metadata retention
-   (`SPARK_SESSION_CONF`); float-exact comparison replaced by a 1e-9 tolerance.
-2. This session: the script on disk had an unfinished edit (`main` still used the removed `ctx.with_gbt` /
-   `GBT_MAX_ITER` and a `fit_gbt` call with the old signature). The extra models were connected into `main`.
-3. With ten feature experiments, a 1 GB driver ran out of heap again in the select-mode test (two full runs in one JVM);
-   with 2 GB the whole suite passes. **The cluster driver has 512 MB. Whether a real select run fits is untested.**
-   Mitigation if it does not: run fewer experiments per run (`--experiments ...`), and give the driver more memory if the
-   Docker/WSL budget allows.
-4. My own test bug (pipeline fixture lacked history columns) fixed in the test, not in the script.
+The components passed after the final fixes, although they were run in focused invocations rather than misrepresented as one uninterrupted suite run.
 
-## Known gaps
-Not covered: real-schema edge cases, YARN, 512 MB executors, runtime on real data, the `E6` combined-spec path inside a
-full run (only `combine_specs` itself is unit-tested), saved-model reload. XGBoost, LightGBM and CatBoost are not
-included; an attempt to run XGBoost's Spark API in this sandbox crashed (Arrow on Java 21), so no XGBoost code was added.
+Coverage includes eligibility reconciliation, split boundaries, predictor provenance, strict past-only expanding and trailing history, warm-up behaviour, frozen lookup tables, schedule-only demand counts, threshold selection, namespace protection, no test-label reads in selection mode, freeze-before-test ordering, result/model persistence, and invariance of selected decisions to changed test labels.
+
+## Failures found and fixed
+
+1. A fresh cluster could not distribute Spark because `spark.yarn.jars` pointed at an empty HDFS directory. The entrypoint now waits for both DataNodes and seeds `/spark-jars` on first start.
+2. Integration tests passed bare temporary paths while Docker's default filesystem was HDFS. Tests now use explicit `file://` URIs for local temporary results/models.
+3. Repeated deep experiment plans exhausted the driver in Adaptive Query Execution's plan-update rendering path. The ML session disables AQE for this deterministic batch pipeline and caps SQL/UI retention. The focused synthetic integration tests then passed with a 2 GB driver.
+4. The first actual temporal combination run exhausted a 512 MB driver while canonicalizing the combined plan. The exact rerun used a 1 GB driver and succeeded; executors remained at 512 MB. This resource requirement is documented in the reproduction command.
+
+No test was skipped or weakened to obtain a pass.
+
+## Actual-data / YARN evidence
+
+- Data validation ran as YARN application `application_1793344136681_0001`, used both workers, and ended `DATA_VALIDATION_STATUS=PASSED`.
+- Controlled actual-data selection jobs ran in isolated result/HDFS namespaces. The reference/history, temporal, calendar/schedule, and extended-history runs all ended `MLLIB_JOB_STATUS=SUCCEEDED` (the initial 512 MB temporal-combination attempt failed as described above and was rerun successfully).
+- The final `--mode all` job freezes configuration before reading test outcomes, evaluates the held-out test once, and writes fitted preprocessing and classifier artifacts. Its application ID and final status are recorded in `docs/ACTUAL_DATA_ML_RESULTS.md`.
+- `src/05_verify_saved_models.py` reloads the persisted PipelineModel, LogisticRegressionModel and RandomForestClassificationModel and checks a consistent positive feature width.
+
+## Reproduce the synthetic tests
+
+```powershell
+docker exec master bash -lc 'spark-submit --master "local[2]" --driver-memory 2g --conf spark.eventLog.enabled=false --conf spark.ui.enabled=false /src/tests/test_temporal_history_features.py'
+docker exec master bash -lc 'spark-submit --master "local[2]" --driver-memory 2g --conf spark.eventLog.enabled=false --conf spark.ui.enabled=false /src/tests/test_ml_pipeline.py'
+```
+
+Generated result directories, Spark logs, Parquet data and model binaries remain excluded from Git.

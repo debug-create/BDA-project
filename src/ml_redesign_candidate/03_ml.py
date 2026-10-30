@@ -154,6 +154,13 @@ SPARK_SESSION_CONF = {
     "spark.ui.retainedStages": "100",
     "spark.ui.retainedTasks": "1000",
     "spark.sql.ui.retainedExecutions": "50",
+    # Repeated experiment feature plans contain many joins/windows. AQE's
+    # onUpdatePlan path renders every rewritten physical plan for the SQL UI;
+    # that plan string alone exhausted a 2 GB driver in the regression suite.
+    # Static planning is deterministic here and avoids that driver-only cost.
+    "spark.sql.adaptive.enabled": "false",
+    "spark.sql.ui.explainMode": "simple",
+    "spark.sql.debug.maxToStringFields": "50",
 }
 
 # Extra model families (opt in with --extra-models gbt,mlp). They are real candidates: tuned on

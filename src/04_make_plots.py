@@ -49,6 +49,21 @@ def main():
     ax.legend(ncol=3, fontsize=8)
     save(fig, output / "model_metrics.png")
 
+    baseline_path = source / "baseline_metrics.csv"
+    if baseline_path.is_file():
+        baselines = pd.read_csv(baseline_path)
+        comparison = pd.concat([metrics, baselines], ignore_index=True)
+        selected = ["AUC_PR", "F1_class1", "Precision_class1", "Recall_class1", "Accuracy"]
+        baseline_data = comparison.set_index("Model")[selected].apply(pd.to_numeric)
+        fig, ax = plt.subplots(figsize=(11, 5.5))
+        baseline_data.plot(kind="bar", ax=ax, width=0.82)
+        ax.set_ylim(0, 1)
+        ax.set_ylabel("Metric value")
+        ax.set_title("Held-out models versus simple baselines")
+        ax.grid(axis="y", alpha=0.25)
+        ax.legend(ncol=3, fontsize=8)
+        save(fig, output / "model_vs_baselines.png")
+
     confusion = require(source / "confusion_counts.csv")
     models = list(confusion["Model"].drop_duplicates())
     fig, axes = plt.subplots(1, len(models), figsize=(5 * len(models), 4), squeeze=False)
@@ -70,6 +85,8 @@ def main():
     experiments_path = source / "experiment_comparison.csv"
     if experiments_path.is_file():
         experiments = pd.read_csv(experiments_path)
+        if "Role" in experiments.columns:
+            experiments = experiments[experiments["Role"] == "feature experiment"]
         experiments["ValidationAUC_PR"] = pd.to_numeric(experiments["ValidationAUC_PR"])
         experiments = experiments.sort_values("ValidationAUC_PR")
         fig, ax = plt.subplots(figsize=(10, max(4.5, 0.45 * len(experiments))))

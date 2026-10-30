@@ -388,8 +388,10 @@ def run_pipeline(root, name, mode, flip_from=None, extra=None):
     "--clean-path", clean,
     "--holidays-path", "file://" + os.path.abspath(holidays),
     "--local-results", os.path.join(out, "local"),
-    "--hdfs-results", os.path.join(out, "hdfs_results"),
-    "--hdfs-models", os.path.join(out, "hdfs_models")
+    # The Docker image sets fs.defaultFS=HDFS. Explicit file:// URIs keep these
+    # synthetic-test artifacts local and make the test portable to that image.
+    "--hdfs-results", "file://" + os.path.abspath(os.path.join(out, "hdfs_results")),
+    "--hdfs-models", "file://" + os.path.abspath(os.path.join(out, "hdfs_models"))
 ] + (extra or [])
     buffer = io.StringIO()
     with contextlib.redirect_stdout(buffer):
@@ -454,7 +456,7 @@ def test_default_namespace_is_safe_and_production_is_guarded():
 def test_select_mode_never_reads_test_and_is_invariant_to_test_labels(root):
     flip_from = date(2024, 10, 1) + timedelta(days=28)   # test window starts at date index 28 of 40
     code, out, local, _ = run_pipeline(root, "sel_a", "select")
-    assert code == 0 and "MLLIB_JOB_STATUS=SUCCEEDED" in out, out[-2000:]
+    assert code == 0 and "MLLIB_JOB_STATUS=SUCCEEDED" in out, out[-12000:]
     assert not os.path.exists(os.path.join(local, "metrics.csv")), "select mode must not write test metrics"
     assert "withheld" in out and "ML_TEST_ROWS" not in out
     cc = read_csv(os.path.join(local, "class_counts.csv"))
