@@ -1,0 +1,30 @@
+# Raw BTS monthly downloads (hundreds of MB each); obtain separately and keep local
+/data/flights_2024_*.csv
+/data/*.zip
+/ml_actual_data_handoff/
+/docker/conf.zip
+
+# Generated outputs, Spark parts, local summaries, models and logs
+/results/*
+!/results/.gitkeep
+*.log
+*.out
+*.err
+spark-warehouse/
+metastore_db/
+
+# Python caches/environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Local editor/OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local WSL settings are per-user and should never be committed
+.wslconfig

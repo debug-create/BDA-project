@@ -1,0 +1,10 @@
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+export HADOOP_HOME=/opt/hadoop
+export HADOOP_CONF_DIR="$HADOOP_HOME/etc/hadoop"
+export HADOOP_LOG_DIR=/opt/hadoop/logs
+export HADOOP_PID_DIR=/opt/hadoop/pids
+export HADOOP_HEAPSIZE_MAX=512
+export HDFS_NAMENODE_OPTS="-Xms256m -Xmx512m ${HDFS_NAMENODE_OPTS:-}"
+export HDFS_DATANODE_OPTS="-Xms128m -Xmx384m ${HDFS_DATANODE_OPTS:-}"
+export YARN_RESOURCEMANAGER_OPTS="-Xms128m -Xmx384m ${YARN_RESOURCEMANAGER_OPTS:-}"
+export YARN_NODEMANAGER_OPTS="-Xms128m -Xmx384m ${YARN_NODEMANAGER_OPTS:-}"

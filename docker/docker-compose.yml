@@ -1,0 +1,58 @@
+services:
+  master:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bda-hadoop-spark:3.4.3-3.5.9
+    container_name: master
+    hostname: master
+    command: ["master"]
+    ports:
+      - "127.0.0.1:9870:9870"   # HDFS NameNode UI
+      - "127.0.0.1:8088:8088"   # YARN ResourceManager UI
+      - "127.0.0.1:18080:18080" # Spark History Server
+      - "127.0.0.1:4040:4040"   # Active Spark application UI in client mode
+    volumes:
+      - namenode-data:/opt/hadoop/data
+      - ../data:/data:ro
+      - ../src:/src
+      - ../results:/results
+      - ../screenshots:/screenshots
+    networks:
+      - bda-net
+    restart: unless-stopped
+
+  worker1:
+    image: bda-hadoop-spark:3.4.3-3.5.9
+    container_name: worker1
+    hostname: worker1
+    command: ["worker"]
+    volumes:
+      - worker1-data:/opt/hadoop/data
+    networks:
+      - bda-net
+    depends_on:
+      - master
+    restart: unless-stopped
+
+  worker2:
+    image: bda-hadoop-spark:3.4.3-3.5.9
+    container_name: worker2
+    hostname: worker2
+    command: ["worker"]
+    volumes:
+      - worker2-data:/opt/hadoop/data
+    networks:
+      - bda-net
+    depends_on:
+      - master
+    restart: unless-stopped
+
+networks:
+  bda-net:
+    driver: bridge
+
+volumes:
+  namenode-data:
+  worker1-data:
+  worker2-data:

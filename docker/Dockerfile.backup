@@ -1,0 +1,39 @@
+FROM ubuntu:22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG HADOOP_VERSION=3.4.3
+ARG SPARK_VERSION=3.5.9
+
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64 \
+    HADOOP_HOME=/opt/hadoop \
+    SPARK_HOME=/opt/spark \
+    HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop \
+    YARN_CONF_DIR=/opt/hadoop/etc/hadoop \
+    PYSPARK_PYTHON=/usr/bin/python3 \
+    PATH=/opt/hadoop/bin:/opt/hadoop/sbin:/opt/spark/bin:/usr/lib/jvm/java-11-openjdk-amd64/bin:$PATH
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openjdk-11-jdk-headless python3 python3-pip curl ca-certificates procps \
+    netcat-openbsd iputils-ping bash tini \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /opt/hadoop /opt/spark \
+    && curl -fSL "https://archive.apache.org/dist/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz" -o /tmp/hadoop.tar.gz \
+    && tar -xzf /tmp/hadoop.tar.gz --strip-components=1 -C /opt/hadoop \
+    && rm /tmp/hadoop.tar.gz \
+    && curl -fSL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" -o /tmp/spark.tgz \
+    && tar -xzf /tmp/spark.tgz --strip-components=1 -C /opt/spark \
+    && rm /tmp/spark.tgz
+
+COPY conf/core-site.xml conf/hdfs-site.xml conf/mapred-site.xml conf/yarn-site.xml conf/hadoop-env.sh /opt/hadoop/etc/hadoop/
+COPY conf/spark-defaults.conf /opt/spark/conf/spark-defaults.conf
+COPY entrypoint.sh /usr/local/bin/bda-entrypoint.sh
+
+RUN chmod +x /usr/local/bin/bda-entrypoint.sh \
+    && mkdir -p /opt/hadoop/data/namenode /opt/hadoop/data/datanode \
+       /opt/hadoop/data/yarn/local /opt/hadoop/data/yarn/logs \
+       /opt/hadoop/logs /opt/hadoop/pids /opt/spark/logs \
+    && ln -sf /opt/hadoop/etc/hadoop /etc/hadoop-conf
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/bda-entrypoint.sh"]
