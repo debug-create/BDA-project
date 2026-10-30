@@ -55,6 +55,19 @@ Frozen model choices:
 
 Balanced class weighting was tested but did not clear the same improvement margin over the best unweighted LR. Threshold selection already addressed the operational precision/recall tradeoff without distorting probability ranking.
 
+## Additional model-family challenge
+
+After the frozen test run, three more model families were evaluated in `--mode select` only. These runs did not read or rescore the test window. XGBoost 3.1.3 ran distributed across both YARN workers and was compared again on the exact combined winning feature specification.
+
+| Model family | Best configuration | Validation PR-AUC | Result versus LR 0.24215 |
+|---|---|---:|---:|
+| Logistic Regression | L2, `regParam=0.001` | **0.24215** | — |
+| Spark GBT | 30 iterations, depth 4 | 0.22368 | -0.01847 |
+| MLP | hidden layers 32–16 | 0.19728 | -0.04487 |
+| Distributed XGBoost | 120 trees, depth 6, eta 0.05 | 0.22677 | -0.01539 |
+
+Changing to a more complex classifier therefore did not improve ranking. XGBoost substantially overfit the training window (depth-6 training PR-AUC reached 0.31657 while validation remained 0.22677). The evidence points to limited pre-departure signal and temporal distribution shift, not insufficient model complexity. LR remains the selected model; none of these post-final challengers was run on test.
+
 ## Controlled feature experiments
 
 Each individual experiment changes one factor from E0 and uses the same Logistic Regression setting (`regParam=0.01`). Test labels were not read. Small numeric differences in repeated E0 runs are below the displayed precision.
@@ -132,6 +145,7 @@ YARN application `_0008` loaded the artifacts back successfully: six preprocessi
 - Low precision is the cost of the F1-selected high-recall threshold. Choose an operational cost function or capacity constraint, then reselect the threshold on a future validation window.
 - Recalibrate probabilities and monitor prevalence, predicted-positive rate and slice metrics over time.
 - Extended/recent history improves ranking but increases plan depth and driver memory. The tested final command uses a 1536 MB driver and 512 MB executors.
-- GBT and MLP paths pass synthetic integration tests but were not promoted to actual-data conclusions because the core Spark cluster is resource-constrained. Test them in isolated selection runs before any final-test comparison.
+- Actual-data GBT, MLP and distributed XGBoost selection runs all underperformed LR. Further model-family churn is not justified without stronger as-of features.
+- A material improvement likely requires forecast weather or operational state such as the same aircraft's earlier leg and recent origin disruption. The current cleaned handoff omits `Tail_Number` and the raw HDFS staging directory is empty, so those features require restaging the original BTS CSVs and an explicitly defined prediction time.
 
 Exact reproduction commands are in the project [README](../README.md); test/failure details are in [TEST_RUN_LOG.md](TEST_RUN_LOG.md).

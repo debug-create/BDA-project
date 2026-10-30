@@ -630,8 +630,8 @@ def test_unknown_extra_model_is_rejected():
         raise AssertionError("expected a clear refusal for an unsupported extra model")
     except ml.PipelineError as error:
         assert "catboost" in str(error)
-    ctx = ml.Ctx(ml.parse_args(["--extra-models", "MLP, gbt"]))
-    assert ctx.extra_models == ["gbt", "mlp"], ctx.extra_models
+    ctx = ml.Ctx(ml.parse_args(["--extra-models", "MLP, xgb, gbt"]))
+    assert ctx.extra_models == ["gbt", "mlp", "xgb"], ctx.extra_models
 
 
 def test_extra_models_full_pipeline_and_decision_invariance(root):

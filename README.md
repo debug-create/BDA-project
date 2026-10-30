@@ -66,9 +66,11 @@ docker exec master bash -lc 'spark-submit --master yarn --deploy-mode client --d
 docker exec master bash -lc 'spark-submit --master yarn --deploy-mode client --driver-memory 1g /src/03_ml.py --mode select --run-tag actual_temporal_features --experiments E0_reference,E3_history_warmup7,E4_history_trailing14,E9_recent7_history'
 docker exec master bash -lc 'spark-submit --master yarn --deploy-mode client --driver-memory 1g /src/03_ml.py --mode select --run-tag actual_calendar_schedule --experiments E0_reference,E2_no_holiday_features,E5_plus_scheduled_demand,E10_extra_demand,E11_schedule_extras'
 docker exec master bash -lc 'spark-submit --master yarn --deploy-mode client --driver-memory 1g /src/03_ml.py --mode select --run-tag actual_extended_history --experiments E0_reference,E8_extended_history'
+docker exec master bash -lc 'spark-submit --master yarn --deploy-mode client --driver-memory 1536m --executor-memory 1g --num-executors 2 --executor-cores 1 /src/03_ml.py --mode select --run-tag actual_xgb_combined --experiments E0_reference,E3_history_warmup7,E8_extended_history,E9_recent7_history,E10_extra_demand --extra-models xgb'
 ```
 
 The 1 GB driver is required for combined feature plans; executors remain at the configured 512 MB. Selection uses validation PR-AUC with a predeclared 0.002 improvement margin. Thresholds maximize delayed-class F1 on validation only.
+The optional XGBoost experiment needs the larger resources shown and uses the CPU-only, pinned dependencies installed by the Dockerfile. It underperformed LR on actual validation data and is retained as reproducible negative evidence, not as the selected model.
 
 ## 6. Run the frozen final evaluation
 

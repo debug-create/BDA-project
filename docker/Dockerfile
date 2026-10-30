@@ -17,6 +17,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     netcat-openbsd iputils-ping bash tini \
     && rm -rf /var/lib/apt/lists/*
 
+# Optional distributed XGBoost candidate used by src/03_ml.py. Pin the complete
+# scientific stack so the same ABI is present on the YARN driver and workers.
+RUN python3 -m pip install --no-cache-dir \
+    numpy==1.24.4 scipy==1.10.1 pyarrow==14.0.2 scikit-learn==1.5.2 xgboost-cpu==3.1.3
+
 RUN mkdir -p /opt/hadoop /opt/spark \
     && curl --fail --location --show-error --retry 8 --retry-all-errors --retry-delay 5 --connect-timeout 30 "https://downloads.apache.org/hadoop/core/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz" -o /tmp/hadoop.tar.gz \
     && tar -xzf /tmp/hadoop.tar.gz --strip-components=1 -C /opt/hadoop \

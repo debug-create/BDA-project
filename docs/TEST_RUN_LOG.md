@@ -2,7 +2,7 @@
 
 Run date: 2026-10-30. Spark 3.5.9, Hadoop 3.4.3, Java 11, Docker Desktop, one YARN ResourceManager and two registered NodeManagers/DataNodes.
 
-Final SHA-256: `src/03_ml.py` = `F89483358D1A2FBD7AEE4F1EB231D69D6C9658E7F72BDE972D56235BC708291B`; `src/tests/test_ml_pipeline.py` = `9702AA70B10BFA906DB94BAD44911489B7B474577C9FEAAC3C8631C01BC207EC`.
+Final SHA-256: `src/03_ml.py` = `33FB94CAB3CA8354054812B12D6A6593143CC89D5CD5756B04939F72324603A0`; `src/tests/test_ml_pipeline.py` = `2A61ED4BC7312F4AF1425DD69F8AF882CB094763AD8ADED07C2BC2E61EC536A7`.
 
 ## Synthetic correctness suite
 
@@ -13,7 +13,7 @@ Synthetic tests verify code properties; they are not evidence of predictive perf
 - `test_select_mode_never_reads_test_and_is_invariant_to_test_labels` passed in 456.4 seconds, including two ten-experiment runs with altered test labels.
 - `test_all_mode_reconciles_and_freezes_before_test` passed in 180.7 seconds.
 - Failure-status and unsupported-model reporting tests passed.
-- `test_extra_models_full_pipeline_and_decision_invariance` passed in 267.1 seconds, exercising LR, RF, GBT and MLP on synthetic data.
+- `test_extra_models_full_pipeline_and_decision_invariance` passed in 250.9 seconds, exercising LR, RF, GBT and MLP on synthetic data; XGBoost CLI parsing is also covered while its predictive fit is evidenced by YARN runs below.
 
 The components passed after the final fixes, although they were run in focused invocations rather than misrepresented as one uninterrupted suite run.
 
@@ -34,6 +34,7 @@ No test was skipped or weakened to obtain a pass.
 - Controlled actual-data selection jobs ran in isolated result/HDFS namespaces. The reference/history, temporal, calendar/schedule, and extended-history runs all ended `MLLIB_JOB_STATUS=SUCCEEDED` (the initial 512 MB temporal-combination attempt failed as described above and was rerun successfully).
 - The final `--mode all` job freezes configuration before reading test outcomes, evaluates the held-out test once, and writes fitted preprocessing and classifier artifacts. Its application ID and final status are recorded in `docs/ACTUAL_DATA_ML_RESULTS.md`.
 - `src/05_verify_saved_models.py` reloads the persisted PipelineModel, LogisticRegressionModel and RandomForestClassificationModel and checks a consistent positive feature width.
+- Actual-data validation-only challenger runs succeeded after the cluster restart: GBT (`actual_gbt_probe2`, best PR-AUC 0.22368), MLP (`actual_mlp_probe`, 0.19728), and XGBoost (`application_1793392054406_0005`, `actual_xgb_combined`, 0.22677). The combined-feature LR comparator was 0.24215. No challenger read test labels or replaced production artifacts.
 
 ## Reproduce the synthetic tests
 

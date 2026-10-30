@@ -80,6 +80,13 @@ from pyspark.ml.feature import Imputer, OneHotEncoder, StandardScaler, StringInd
 from pyspark.ml.functions import vector_to_array
 from pyspark.sql import SparkSession, Window, functions as F, types as T
 
+try:
+    from xgboost.spark import SparkXGBClassifier
+except ImportError:
+    # XGBoost is optional: ordinary LR/RF/GBT/MLP runs must still work in the
+    # original image. A clear error is raised only when --extra-models xgb is used.
+    SparkXGBClassifier = None
+
 # --------------------------------------------------------------------------
 # Paths. The production names are the existing interface and are unchanged.
 # --------------------------------------------------------------------------
@@ -163,7 +170,7 @@ SPARK_SESSION_CONF = {
     "spark.sql.debug.maxToStringFields": "50",
 }
 
-# Extra model families (opt in with --extra-models gbt,mlp). They are real candidates: tuned on
+# Extra model families (opt in with --extra-models gbt,mlp,xgb). They are real candidates: tuned on
 # validation AUC-PR, thresholded on validation F1, refit on train+validation, scored once on test.
 # Runtime/memory on 1.7 M rows with 512 MB executors is UNTESTED; start with --mode select.
 GBT_CONFIGS = [{"maxIter": 30, "maxDepth": 4}, {"maxIter": 30, "maxDepth": 6}]
@@ -172,9 +179,17 @@ GBT_MIN_INSTANCES = 100
 MLP_CONFIGS = [{"hidden": [16]}, {"hidden": [32, 16]}]     # hidden layer sizes
 MLP_MAX_ITER = 60
 MLP_BLOCK_SIZE = 256
-EXTRA_MODEL_NAMES = {"gbt": "GBTClassifier", "mlp": "MultilayerPerceptron"}
+XGB_CONFIGS = [
+    {"n_estimators": 120, "max_depth": 4, "learning_rate": 0.05, "min_child_weight": 20.0},
+    {"n_estimators": 120, "max_depth": 6, "learning_rate": 0.05, "min_child_weight": 20.0},
+]
+XGB_NUM_WORKERS = 2
+EXTRA_MODEL_NAMES = {
+    "gbt": "GBTClassifier", "mlp": "MultilayerPerceptron", "xgb": "SparkXGBClassifier"
+}
 MODEL_DIRS = {"LogisticRegression": "logistic_regression", "RandomForest": "random_forest",
-              "GBTClassifier": "gbt", "MultilayerPerceptron": "mlp"}
+              "GBTClassifier": "gbt", "MultilayerPerceptron": "mlp",
+              "SparkXGBClassifier": "xgboost"}
 
 # --------------------------------------------------------------------------
 # Feature definitions and leakage rules
@@ -309,7 +324,7 @@ def parse_args(argv=None):
     p.add_argument("--experiments", default="all",
                    help="comma-separated experiment names to run (E0_reference is always run)")
     p.add_argument("--extra-models", default="",
-                   help="comma list of extra model families to tune and evaluate like LR/RF: gbt,mlp "
+                   help="comma list of extra model families to tune and evaluate like LR/RF: gbt,mlp,xgb "
                         "(resource permitting; untested on 512 MB executors)")
     # Path overrides (used by the synthetic tests; any Hadoop-compatible URI works).
     p.add_argument("--clean-path", default=CLEAN_PATH)
@@ -925,6 +940,25 @@ def fit_mlp(vec_df, config):
     return pipeline.fit(vec_df)
 
 
+def fit_xgb(vec_df, config):
+    """Distributed CPU XGBoost; optional because it adds Python dependencies to every YARN node."""
+    if SparkXGBClassifier is None:
+        raise PipelineError(
+            "--extra-models xgb requires xgboost-cpu, scikit-learn, scipy and pyarrow "
+            "on the driver and every executor"
+        )
+    return SparkXGBClassifier(
+        label_col="label", features_col="features", probability_col="probability",
+        prediction_col="prediction", raw_prediction_col="rawPrediction",
+        num_workers=XGB_NUM_WORKERS, n_estimators=int(config["n_estimators"]),
+        max_depth=int(config["max_depth"]), learning_rate=float(config["learning_rate"]),
+        min_child_weight=float(config["min_child_weight"]),
+        subsample=0.8, colsample_bytree=0.8, reg_lambda=10.0, reg_alpha=0.0,
+        eval_metric="aucpr", tree_method="hist",
+        max_bin=128, random_state=SEED, force_repartition=True, verbosity=1,
+    ).fit(vec_df)
+
+
 def tune_candidates(family, configs, label_fn, fit_fn, train_vec, val_vec, keep, release,
                     search_rows, experiment_rows, spec, description):
     """Validation-only grid for one model family; returns the best candidate dict."""
@@ -1365,12 +1399,20 @@ def main(argv=None, spark=None) -> int:
                     fit_gbt, train_vec, val_vec, keep, release, search_rows, experiment_rows, spec,
                     "extra model grid")
                 best["fit"] = fit_gbt
-            else:
+            elif key == "mlp":
                 best = tune_candidates(
                     family, MLP_CONFIGS, lambda c: "hidden=" + "-".join(str(h) for h in c["hidden"]),
                     fit_mlp, train_vec, val_vec, keep, release, search_rows, experiment_rows, spec,
                     "extra model grid")
                 best["fit"] = fit_mlp
+            else:
+                best = tune_candidates(
+                    family, XGB_CONFIGS,
+                    lambda c: (f"n={c['n_estimators']},depth={c['max_depth']},"
+                               f"eta={c['learning_rate']},minChild={c['min_child_weight']}"),
+                    fit_xgb, train_vec, val_vec, keep, release, search_rows, experiment_rows, spec,
+                    "distributed XGBoost grid")
+                best["fit"] = fit_xgb
             best["family"] = family
             extras.append(best)
 
