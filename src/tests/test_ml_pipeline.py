@@ -225,8 +225,14 @@ def test_leakage_guard_and_provenance():
         impute, plain, history, categorical = ml.spec_columns(spec)
         for feature in impute + plain + history + categorical:
             assert feature in ml.FEATURE_PROVENANCE, f"no provenance for {feature}"
-            assert set(ml.FEATURE_PROVENANCE[feature]) <= allowed, (feature, ml.FEATURE_PROVENANCE[feature])
-            assert not (set(ml.FEATURE_PROVENANCE[feature]) & ml.FORBIDDEN_SOURCE_COLUMNS), feature
+            if feature in ml.OPS_FEATURES:
+                sources = set(ml.FEATURE_PROVENANCE[feature])
+                assert sources <= set(ml.REQUIRED_EVENT_COLUMNS), (feature, sources)
+                assert not sources & {"ArrDel15", "CancellationCode", "CarrierDelay", "WeatherDelay",
+                                      "NASDelay", "SecurityDelay", "LateAircraftDelay"}, feature
+            else:
+                assert set(ml.FEATURE_PROVENANCE[feature]) <= allowed, (feature, ml.FEATURE_PROVENANCE[feature])
+                assert not (set(ml.FEATURE_PROVENANCE[feature]) & ml.FORBIDDEN_SOURCE_COLUMNS), feature
     # The frame fed to the models carries only allow-listed columns plus label / ordering key.
     clean = synthetic_flights(days=5, per_day=20)
     holidays = spark.createDataFrame([(date(2024, 10, 2), "H")], "FlightDate date, HolidayPeriod string")
@@ -428,6 +434,12 @@ def test_default_namespace_is_safe_and_production_is_guarded():
     ctx = ml.Ctx(ml.parse_args([]))
     assert "experiments" in ctx.local_results and "experiments" in ctx.hdfs_results and "experiments" in ctx.hdfs_models
     assert ctx.local_results != ml.PRODUCTION_LOCAL_RESULTS
+    assert "E12_asof_ops" not in ctx.experiment_names and "E13_e6_plus_asof" not in ctx.experiment_names
+    ops_ctx = ml.Ctx(ml.parse_args(["--experiments", "E12_asof_ops,E13_e6_plus_asof",
+                                    "--asof-lead-minutes", "120"]))
+    assert {"E0_reference", "E12_asof_ops", "E13_e6_plus_asof"} <= set(ops_ctx.experiment_names)
+    e13 = next(spec for spec in ml.EXPERIMENT_SPECS if spec["name"] == "E13_e6_plus_asof")
+    assert e13["asof_ops"] and set(ml.OPS_FEATURES) <= set(ml.spec_columns(e13)[1])
     for argv in (["--namespace", "production"], ["--namespace", "production", "--confirm-overwrite-baseline", "--mode", "select"]):
         try:
             ml.Ctx(ml.parse_args(argv))

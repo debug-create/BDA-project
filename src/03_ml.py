@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Spark MLlib classification of BTS flight arrival delays (ArrDel15) -- redesigned ML stage.
 
-Question: using ONLY information available before scheduled departure, can we predict
+Default question: using ONLY information available before scheduled departure, can we predict
 whether an eligible scheduled flight arrives >= 15 minutes late (ArrDel15 = 1)?
+Opt-in E12/E13 question: at T = scheduled departure minus the configured lead, can
+schedule plus operational events observed by T improve that prediction?
 This is an observational prediction task on three months of data. It is NOT a causal
 estimate of any holiday effect (the descriptive Spark SQL job is the place for that).
 
@@ -53,10 +55,11 @@ Feature rules (all known before departure)
 Raw Year / Month / DayofMonth / DayOfYear are deliberately NOT used: in a chronological
 split the test dates lie outside the training date range.
 
-Limitations that code cannot fix: no weather, inbound-aircraft status or same-day
-network state is allowed (not known before departure); delay prevalence drifts across
-the three months; Thanksgiving / Christmas categories are rare or absent in the fitting
-windows, so the model can only extrapolate holiday behaviour from other holidays.
+Limitations that code cannot fix: no weather or inbound-aircraft identifier is available;
+the opt-in operational factor uses conservative hourly aggregates rather than aircraft
+rotations; delay prevalence drifts across the three months; Thanksgiving / Christmas
+categories are rare or absent in the fitting windows, so the model can only extrapolate
+holiday behaviour from other holidays.
 Better metrics are not guaranteed; whatever the held-out test window gives is reported.
 """
 
@@ -79,6 +82,12 @@ from pyspark.ml.evaluation import BinaryClassificationEvaluator
 from pyspark.ml.feature import Imputer, OneHotEncoder, StandardScaler, StringIndexer, VectorAssembler
 from pyspark.ml.functions import vector_to_array
 from pyspark.sql import SparkSession, Window, functions as F, types as T
+
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+from asof_ops import (OPS_FEATURES, REQUIRED_EVENT_COLUMNS,
+                      attach_asof_features)
 
 try:
     from xgboost.spark import SparkXGBClassifier
@@ -264,12 +273,32 @@ FEATURE_PROVENANCE = {
     "recent_rate_origin": ["Origin", "FlightDate"],
     "recent_rate_origin_depblk": ["Origin", "DepTimeBlk", "FlightDate"],
 }
+ASOF_FEATURE_PROVENANCE = {
+    "OpsOriginDepartedCount3h": ["Origin", "FlightDate", "CRSDepTime", "DepDelay", "Cancelled", "Diverted"],
+    "OpsOriginMeanDepDelay3h": ["Origin", "FlightDate", "CRSDepTime", "DepDelay", "Cancelled", "Diverted"],
+    "OpsOriginDepDelay15Share3h": ["Origin", "FlightDate", "CRSDepTime", "DepDelay", "Cancelled", "Diverted"],
+    "OpsOriginBacklogCount3h": ["Origin", "FlightDate", "CRSDepTime", "DepDelay", "Cancelled", "Diverted"],
+    "OpsOriginBacklogShare3h": ["Origin", "FlightDate", "CRSDepTime", "DepDelay", "Cancelled", "Diverted"],
+    "OpsOriginInboundLandedCount3h": ["Dest", "FlightDate", "CRSDepTime", "CRSArrTime", "ArrDelay", "Cancelled", "Diverted"],
+    "OpsOriginInboundMeanArrDelay3h": ["Dest", "FlightDate", "CRSDepTime", "CRSArrTime", "ArrDelay", "Cancelled", "Diverted"],
+    "OpsOriginInboundArrDelay15Share3h": ["Dest", "FlightDate", "CRSDepTime", "CRSArrTime", "ArrDelay", "Cancelled", "Diverted"],
+    "OpsCarrierDepartedCountToday": ["Reporting_Airline", "FlightDate", "CRSDepTime", "DepDelay", "Cancelled", "Diverted"],
+    "OpsCarrierMeanDepDelayToday": ["Reporting_Airline", "FlightDate", "CRSDepTime", "DepDelay", "Cancelled", "Diverted"],
+    "OpsCarrierDepDelay15ShareToday": ["Reporting_Airline", "FlightDate", "CRSDepTime", "DepDelay", "Cancelled", "Diverted"],
+    "OpsCarrierScheduledBeforeCountToday": ["Reporting_Airline", "FlightDate", "CRSDepTime", "DepDelay", "Cancelled", "Diverted"],
+    "OpsCarrierBacklogShareToday": ["Reporting_Airline", "FlightDate", "CRSDepTime", "DepDelay", "Cancelled", "Diverted"],
+    "OpsDestLandedCount3h": ["Dest", "FlightDate", "CRSDepTime", "CRSArrTime", "ArrDelay", "Cancelled", "Diverted"],
+    "OpsDestMeanArrDelay3h": ["Dest", "FlightDate", "CRSDepTime", "CRSArrTime", "ArrDelay", "Cancelled", "Diverted"],
+    "OpsDestArrDelay15Share3h": ["Dest", "FlightDate", "CRSDepTime", "CRSArrTime", "ArrDelay", "Cancelled", "Diverted"],
+}
+FEATURE_PROVENANCE.update(ASOF_FEATURE_PROVENANCE)
 
 # One-factor-at-a-time feature experiments. Each differs from E0 in ONE factor.
 SPEC_DEFAULTS = {
     "use_history": True, "window_days": None, "warmup_days": 0,
     "use_holiday": True, "use_demand": False,
     "history_set": "base", "recent_days": None, "extra_demand": False, "sched_extras": False,
+    "asof_ops": False,
 }
 EXPERIMENT_SPECS = [
     {"name": "E0_reference", "factor": "none (previous script's feature set)", **SPEC_DEFAULTS},
@@ -289,9 +318,14 @@ EXPERIMENT_SPECS = [
      **{**SPEC_DEFAULTS, "extra_demand": True}},
     {"name": "E11_schedule_extras", "factor": "add scheduled speed (distance / block time) and log distance",
      **{**SPEC_DEFAULTS, "sched_extras": True}},
+    {"name": "E12_asof_ops", "factor": "add conservative operations observed by prediction time",
+     **{**SPEC_DEFAULTS, "asof_ops": True}},
+    {"name": "E13_e6_plus_asof", "factor": "add conservative as-of operations to the frozen E6 feature spec",
+     **{**SPEC_DEFAULTS, "warmup_days": 7, "history_set": "extended", "recent_days": RECENT_DAYS_CHOICE,
+        "extra_demand": True, "asof_ops": True}},
 ]
 SPEC_FACTOR_KEYS = ["use_history", "window_days", "warmup_days", "use_holiday", "use_demand",
-                    "history_set", "recent_days", "extra_demand", "sched_extras"]
+                    "history_set", "recent_days", "extra_demand", "sched_extras", "asof_ops"]
 
 T0 = time.time()
 
@@ -326,6 +360,8 @@ def parse_args(argv=None):
     p.add_argument("--extra-models", default="",
                    help="comma list of extra model families to tune and evaluate like LR/RF: gbt,mlp,xgb "
                         "(resource permitting; untested on 512 MB executors)")
+    p.add_argument("--asof-lead-minutes", type=int, choices=[60, 120, 180], default=120,
+                   help="prediction lead for asof_ops experiments; T = scheduled departure minus this many minutes")
     # Path overrides (used by the synthetic tests; any Hadoop-compatible URI works).
     p.add_argument("--clean-path", default=CLEAN_PATH)
     p.add_argument("--holidays-path", default=HOLIDAYS_PATH)
@@ -374,6 +410,7 @@ class Ctx:
         if unknown_extras:
             raise PipelineError(f"Unknown --extra-models {unknown_extras}; valid: {sorted(EXTRA_MODEL_NAMES)}")
         self.extra_models = [e for e in EXTRA_MODEL_NAMES if e in extras]
+        self.asof_lead_minutes = int(args.asof_lead_minutes)
         self.clean_path = args.clean_path
         self.holidays_path = args.holidays_path
         tag = args.run_tag.strip()
@@ -392,7 +429,10 @@ class Ctx:
         requested = [s.strip() for s in args.experiments.split(",") if s.strip()]
         all_names = [s["name"] for s in EXPERIMENT_SPECS]
         if requested == ["all"] or not requested:
-            self.experiment_names = all_names
+            # Keep the historical default behaviour: the changed T-minus-lead
+            # problem statement is opt-in and never joins outcome-derived state
+            # unless E12/E13 is named explicitly.
+            self.experiment_names = [s["name"] for s in EXPERIMENT_SPECS if not s["asof_ops"]]
         else:
             unknown = [n for n in requested if n not in all_names]
             if unknown:
@@ -748,6 +788,8 @@ def spec_columns(spec):
         plain += DEMAND_FEATURES
     if spec["extra_demand"]:
         plain += EXTRA_DEMAND_FEATURES
+    if spec["asof_ops"]:
+        plain += OPS_FEATURES
     impute = list(IMPUTE_FEATURES) + (SCHED_EXTRA_FEATURES if spec["sched_extras"] else [])
     history = [name for group in history_groups(spec) for name in group["keys_map"]]
     return impute, plain, history, categorical
@@ -778,7 +820,8 @@ def spec_label(spec):
     demand = "on" if spec["use_demand"] else "off"
     extras = (f",historyset={spec['history_set']},recent={spec['recent_days'] or 'off'},"
               f"extrademand={'on' if spec['extra_demand'] else 'off'},"
-              f"schedextras={'on' if spec['sched_extras'] else 'off'}")
+              f"schedextras={'on' if spec['sched_extras'] else 'off'},"
+              f"asofops={'on' if spec['asof_ops'] else 'off'}")
     return f"history={history},warmup={spec['warmup_days']},holiday={holiday},demand={demand}{extras}"
 
 
@@ -857,7 +900,8 @@ def prepare_stage(label, spec, fit_base, apply_bases, keep, release):
     pipeline_model = make_pipeline(spec).fit(fit_h)
 
     def vectorize(df):
-        return pipeline_model.transform(df).select("label", "HolidayPeriod", "features")
+        extras = ["FlightDate"] if "FlightDate" in df.columns else []
+        return pipeline_model.transform(df).select(*extras, "label", "HolidayPeriod", "features")
 
     fit_vec = keep(vectorize(fit_h))
     fit_vec.count()
@@ -986,9 +1030,10 @@ def tune_candidates(family, configs, label_fn, fit_fn, train_vec, val_vec, keep,
 
 def score_dataframe(model, vec_df, keep):
     """Class-1 probability per flight; cached because several metrics reuse it."""
+    extras = ["FlightDate"] if "FlightDate" in vec_df.columns else []
     scored = keep(
         model.transform(vec_df).select(
-            "label", "HolidayPeriod", "probability",
+            *extras, "label", "HolidayPeriod", "probability",
             vector_to_array(F.col("probability"))[1].alias("score"),
         )
     )
@@ -1161,6 +1206,7 @@ def tidy_spec_fields(spec):
         spec["recent_days"] if spec["recent_days"] else "",
         "yes" if spec["extra_demand"] else "no",
         "yes" if spec["sched_extras"] else "no",
+        "yes" if spec["asof_ops"] else "no",
     ]
 
 
@@ -1228,6 +1274,14 @@ def main(argv=None, spark=None) -> int:
                  .distinct().orderBy("FlightDate").collect()]
         windows = compute_windows(dates)
         validation_start, test_start = windows["validation"][0], windows["test"][0]
+        needs_asof_ops = any(s["asof_ops"] for s in EXPERIMENT_SPECS
+                             if s["name"] in ctx.experiment_names)
+        if needs_asof_ops:
+            missing_asof = [column for column in REQUIRED_EVENT_COLUMNS if column not in flights.columns]
+            if missing_asof:
+                raise PipelineError(f"asof_ops experiments require clean columns: {missing_asof}")
+            log(f"ASOF_OPS enabled: prediction time is scheduled departure minus "
+                f"{ctx.asof_lead_minutes} minutes; only strictly earlier local-hour events are used.")
         log(f"Distinct calendar dates: {len(dates)}")
         for split, (start, end) in windows.items():
             note = "  (test outcome fields withheld until after selection is frozen)" if split == "test" else ""
@@ -1253,6 +1307,24 @@ def main(argv=None, spark=None) -> int:
         demand = keep(compute_demand_table(selection_source))
         eligible = keep(build_eligible_frame(selection_source, holidays, demand))
         check_rows("pre-test eligible frame (holiday + demand joins)", eligible_total, eligible)
+        ops_priors = None
+        if needs_asof_ops:
+            # The six materialized hourly joins deliberately keep their plans
+            # auditable, but combining that lineage with E6's thirteen history
+            # tables can exhaust a 1536 MB driver while Spark canonicalises the
+            # plan.  A reliable HDFS checkpoint truncates only lineage; it does
+            # not alter rows or feature values and stays in this run's isolated
+            # experiment namespace.
+            spark.sparkContext.setCheckpointDir(ctx.hdfs_results.rstrip("/") + "/_checkpoints")
+            eligible_with_ops, ops_priors = attach_asof_features(
+                selection_source, eligible, ctx.asof_lead_minutes, validation_start, keep, release)
+            release(eligible)
+            eligible_checkpoint = keep(eligible_with_ops.checkpoint(eager=True))
+            eligible_checkpoint.count()
+            release(eligible_with_ops)
+            eligible = eligible_checkpoint
+            check_rows("pre-test eligible frame (asof_ops joins)", eligible_total, eligible)
+            log("ASOF_LINEAGE_CHECKPOINT=PASSED pre-test feature frame")
 
         split_expr = (
             F.when(F.col("FlightDate") < F.lit(validation_start), "train")
@@ -1461,6 +1533,8 @@ def main(argv=None, spark=None) -> int:
             "mode": ctx.mode,
             "feature_spec": {k: spec[k] for k in SPEC_FACTOR_KEYS} | {"name": spec["name"]},
             "feature_spec_label": spec_label(spec),
+            "asof_lead_minutes": ctx.asof_lead_minutes if spec["asof_ops"] else None,
+            "asof_smoothing_priors": ops_priors if spec["asof_ops"] else None,
             "selection_margin_auc_pr": SELECTION_MARGIN,
             "logistic_regression": {"label": best_lr["label"], "regParam": best_lr["reg"],
                                     "class_weighted": best_lr["weighted"], "maxIter": LR_MAX_ITER},
@@ -1507,6 +1581,16 @@ def main(argv=None, spark=None) -> int:
             # and read its target only after the frozen_config has been written.
             test_demand = keep(compute_demand_table(test_source))
             test_eligible = keep(build_eligible_frame(test_source, holidays, test_demand))
+            if spec["asof_ops"]:
+                test_with_ops, _ = attach_asof_features(
+                    flights, test_eligible, ctx.asof_lead_minutes, validation_start,
+                    keep, release, priors=ops_priors)
+                release(test_eligible)
+                test_checkpoint = keep(test_with_ops.checkpoint(eager=True))
+                test_checkpoint.count()
+                release(test_with_ops)
+                test_eligible = test_checkpoint
+                log("ASOF_LINEAGE_CHECKPOINT=PASSED test feature frame")
             test_eligible_count = test_eligible.count()
             test_pos = int(test_eligible.agg(F.sum("label")).first()[0] or 0)
             test_n = test_eligible_count
@@ -1615,6 +1699,14 @@ def main(argv=None, spark=None) -> int:
                                       test_prevalence, (tp + fp) / test_n])
                 for fraction, flagged_fraction, flagged_n, p_, r_, lift in ranking_metrics(scored, TOP_FRACTIONS, test_n, test_pos):
                     ranking_rows.append([model_name, fraction, flagged_fraction, flagged_n, p_, r_, lift])
+                if spec["asof_ops"]:
+                    (scored.select("FlightDate", "label",
+                                   F.floor(F.col("score") * 1000).cast("int").alias("ScoreBin"))
+                     .groupBy("FlightDate", "ScoreBin")
+                     .agg(F.count("*").alias("Flights"),
+                          F.sum("label").cast("long").alias("Delayed15Plus"))
+                     .write.mode("overwrite").option("header", True).csv(
+                         f"{ctx.hdfs_results}/score_histograms_1000bin/{model_name}"))
                 slice_rows.append([model_name, "ALL TEST", test_n, test_pos, test_prevalence, roc, pr,
                                    float(threshold), precision, recall, f1, accuracy])
                 for period in sorted(r[0] for r in scored.select("HolidayPeriod").distinct().collect()):
@@ -1691,7 +1783,7 @@ def main(argv=None, spark=None) -> int:
         # ---------------- experiment comparison table ----------------
         header = ["Experiment", "Description", "UsesHistory", "HistoryWindowDays", "WarmupDays",
                   "UsesHolidayFeatures", "UsesScheduledDemand", "HistorySet", "RecentWindowDays",
-                  "UsesExtraDemand", "UsesScheduleExtras", "Model", "Role",
+                  "UsesExtraDemand", "UsesScheduleExtras", "UsesAsOfOperations", "Model", "Role",
                   "ValidationAUC_ROC", "ValidationAUC_PR", "ValidationBestF1", "ValidationBestThreshold",
                   "DeltaAUC_PR_vs_Reference", "BeatsReferenceByMargin", "Selected", "Seconds",
                   "TestAUC_PR", "TestF1"]
@@ -1715,9 +1807,12 @@ def main(argv=None, spark=None) -> int:
             f"Mode: {ctx.mode}; namespace: {ctx.namespace}",
             "Target: ArrDel15; positive class: arrival delay >= 15 minutes",
             "Cancelled and diverted flights excluded; valid 0/1 target required.",
-            "Predictors: pre-departure schedule, carrier, cyclic time features, holiday calendar, optional",
-            "  scheduled origin-hour demand and smoothed historical delay rates (strictly earlier dates).",
-            "No post-departure or delay-cause columns, no Tail_Number, no raw Year/Month/DayOfYear.",
+            "Predictors: schedule, carrier, cyclic time features, holiday calendar, optional scheduled demand,",
+            "  smoothed historical delay rates, and (only when selected) operational events observable by T.",
+            (f"Operations-aware problem statement: T-{ctx.asof_lead_minutes} minutes; events from strictly earlier "
+             "local-clock hours only." if spec["asof_ops"] else
+             "Schedule-only problem statement: no same-day operational outcome fields are used."),
+            "No delay-cause codes, no Tail_Number, no raw Year/Month/DayOfYear.",
             f"Input rows: {total_rows}; eligible rows in input: {eligible_total}",
             f"Distinct dates: {len(dates)}",
             f"Training date range: {windows['train'][0]} through {windows['train'][1]}",
