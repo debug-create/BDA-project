@@ -1,0 +1,67 @@
+{
+  "design_evaluation_label": "THIRD DESIGN EVALUATION, UTC-corrected",
+  "feature_time_basis": "UTC with date- and DST-aware airport offsets; conservative ambiguous-hour handling",
+  "test_window_use_before_this_evaluation": 2,
+  "asof_lead_minutes": 120,
+  "asof_smoothing_priors": {
+    "arr_mean": -0.9449691734090566,
+    "arr_share": 0.13742487686689825,
+    "carrier_backlog_share": 0.021607663028443753,
+    "dep_mean": 5.679958829198303,
+    "dep_share": 0.1384532103578844,
+    "origin_backlog_share": 0.05213970052513455,
+    "smoothing": 20.0
+  },
+  "extra_models": {},
+  "feature_spec": {
+    "asof_ops": true,
+    "extra_demand": true,
+    "history_set": "extended",
+    "name": "E13_e6_plus_asof",
+    "recent_days": 7,
+    "sched_extras": false,
+    "use_demand": false,
+    "use_history": true,
+    "use_holiday": true,
+    "warmup_days": 7,
+    "window_days": null
+  },
+  "feature_spec_label": "history=expanding,warmup=7,holiday=on,demand=off,historyset=extended,recent=7,extrademand=on,schedextras=off,asofops=on",
+  "frozen_before_test_scoring": true,
+  "logistic_regression": {
+    "class_weighted": false,
+    "label": "regParam=0.001",
+    "maxIter": 30,
+    "regParam": 0.001
+  },
+  "mode": "select",
+  "random_forest": {
+    "featureSubsetStrategy": "onethird",
+    "label": "maxDepth=7,minInstancesPerNode=100,numTrees=30",
+    "maxBins": 32,
+    "maxDepth": 7,
+    "minInstancesPerNode": 100,
+    "numTrees": 30,
+    "subsamplingRate": 0.5
+  },
+  "seed": 42,
+  "selection_margin_auc_pr": 0.002,
+  "thresholds_from_validation_F1": {
+    "LogisticRegression": 0.15,
+    "RandomForest": 0.14
+  },
+  "windows": {
+    "test": [
+      "2024-12-04",
+      "2024-12-31"
+    ],
+    "train": [
+      "2024-10-01",
+      "2024-11-24"
+    ],
+    "validation": [
+      "2024-11-25",
+      "2024-12-03"
+    ]
+  }
+}

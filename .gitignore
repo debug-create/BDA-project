@@ -17,6 +17,7 @@ metastore_db/
 __pycache__/
 *.py[cod]
 .venv/
+.venv-ops-v2/
 venv/
 .env
 
