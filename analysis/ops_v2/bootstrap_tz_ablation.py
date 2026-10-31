@@ -50,22 +50,23 @@ def main():
             by_variant_date[row["Variant"]][row["FlightDate"]].append(
                 (int(row["ScoreBin"]), int(row["Flights"]), int(row["Delayed15Plus"])))
 
-    reference = "a_origin_only_utc"
-    comparisons = ["d_all_new_utc", "c_all_old_local_clock"]
-    dates = sorted(by_variant_date[reference])
-    if not dates or any(sorted(by_variant_date[name]) != dates for name in comparisons):
+    comparisons = [
+        ("d_all_new_utc", "a_origin_only_utc"),
+        ("d_all_new_utc", "c_all_old_local_clock"),
+    ]
+    dates = sorted(by_variant_date[comparisons[0][0]])
+    names = {name for pair in comparisons for name in pair}
+    if not dates or any(sorted(by_variant_date[name]) != dates for name in names):
         raise RuntimeError("variants do not contain the same non-empty validation date blocks")
 
     rng = random.Random(args.seed)
-    differences = {name: [] for name in comparisons}
+    differences = {pair: [] for pair in comparisons}
     for _ in range(args.replicates):
         sampled = [rng.choice(dates) for _ in dates]
-        reference_auc = area_under_pr(
-            [item for date in sampled for item in by_variant_date[reference][date]])
-        for name in comparisons:
-            candidate_auc = area_under_pr(
-                [item for date in sampled for item in by_variant_date[name][date]])
-            differences[name].append(candidate_auc - reference_auc)
+        auc = {name: area_under_pr(
+            [item for date in sampled for item in by_variant_date[name][date]]) for name in names}
+        for candidate, reference in comparisons:
+            differences[(candidate, reference)].append(auc[candidate] - auc[reference])
 
     result = {
         "method": "paired nonparametric date-block bootstrap; 1000-bin validation scores; percentile CI",
@@ -74,8 +75,8 @@ def main():
         "validation_date_blocks": len(dates),
         "comparisons": {},
     }
-    for name, values in differences.items():
-        result["comparisons"][f"{name}_minus_{reference}"] = {
+    for (candidate, reference), values in differences.items():
+        result["comparisons"][f"{candidate}_minus_{reference}"] = {
             "mean_difference": sum(values) / len(values),
             "ci_95_low": percentile(values, 0.025),
             "ci_95_high": percentile(values, 0.975),
