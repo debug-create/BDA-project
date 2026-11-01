@@ -29,3 +29,8 @@ Thumbs.db
 
 # Local WSL settings are per-user and should never be committed
 .wslconfig
+
+/.venv-ops-v2-host/
+/results/experiments/ml_redesign/ops_v2/host_export/
+results/experiments/ml_redesign/ops_v2/host_models/
+results/experiments/ml_redesign/ops_v2/dl_checkpoints/
