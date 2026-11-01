@@ -11,7 +11,7 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 
 ROOT = Path("results/experiments/ml_redesign/ops_v2")
 EXPORT = Path(os.environ.get("OPS_V2_EXPORT", r"C:\bda\ops_v2\pretest"))
-META = ROOT / "host_export" / "pretest_metadata.json"
+META = Path(os.environ.get("OPS_V2_META", str(ROOT / "host_export" / "pretest_metadata.json")))
 RESULTS = ROOT / "host_models"
 
 

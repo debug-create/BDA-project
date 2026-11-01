@@ -206,37 +206,46 @@ def main():
                     .select(F.to_date("FlightDate").alias("FlightDate"), "HolidayPeriod"))
         base = keep(export_base(source, holidays)); base_n = base.count()
         tz = keep(utc.load_timezone_offsets(spark)); tz.count()
+        fitting_cutoff = TEST_START if config.scope == "test" else VAL_START
         with_ops, priors, coverage = utc.attach_asof_features_utc(
-            source, base, 120, VAL_START, tz, keep, release,
-            priors=OPS_PRIORS if config.scope == "test" else None)
+            source, base, 120, fitting_cutoff, tz, keep, release, priors=None)
         with_ops = keep(with_ops.checkpoint(eager=True))
         with_state, state_columns = state.attach_hourly_state_utc(
             source, with_ops, tz, 120, priors, keep, release)
         with_state = keep(with_state.checkpoint(eager=True))
-        train = with_state.filter(F.col("FlightDate") < F.lit(VAL_START))
-        validation = with_state.filter((F.col("FlightDate") >= F.lit(VAL_START)) &
-                                       (F.col("FlightDate") < F.lit(TEST_START)))
-        train_h, val_h, specification = add_history(train, validation, keep)
-        train_h, val_h, congestion_median = add_congestion(train_h, val_h)
-        pretest = keep(add_ops_masks(add_summary_features(train_h.unionByName(val_h))))
+        if config.scope == "pretest":
+            fitting = with_state.filter(F.col("FlightDate") < F.lit(VAL_START))
+            apply = with_state.filter((F.col("FlightDate") >= F.lit(VAL_START)) &
+                                      (F.col("FlightDate") < F.lit(TEST_START)))
+        else:
+            fitting = with_state.filter(F.col("FlightDate") < F.lit(TEST_START))
+            apply = with_state.filter(F.col("FlightDate") >= F.lit(TEST_START))
+        fitting_h, apply_h, specification = add_history(fitting, apply, keep)
+        fitting_h, apply_h, congestion_median = add_congestion(fitting_h, apply_h)
+        assembled = keep(add_ops_masks(add_summary_features(fitting_h.unionByName(apply_h))))
 
-        # Frozen Phase-0 Spark LR offset: preprocessing and LR are fitted on the
-        # warm-up-eligible training rows only; validation labels are never used.
-        train_fit = pretest.filter((F.col("Split") == "train") & (F.col("FitEligible") == 1))
-        pipeline = ml.make_pipeline(specification).fit(train_fit)
-        train_vec = keep(pipeline.transform(train_fit).select("FlightKey", "label", "features"))
-        lr = ml.fit_logistic(train_vec, 0.001)
-        all_vec = pipeline.transform(pretest).select("FlightKey", "features")
+        # Pretest: fit on train only.  Authorized test export: refit on the
+        # complete train+validation fitting window, never on a test label.
+        if config.scope == "pretest":
+            fitting_rows = assembled.filter((F.col("Split") == "train") & (F.col("FitEligible") == 1))
+        else:
+            fitting_rows = assembled.filter((F.col("Split").isin("train", "validation")) &
+                                             (F.col("FitEligible") == 1))
+        pipeline = ml.make_pipeline(specification).fit(fitting_rows)
+        fitting_vec = keep(pipeline.transform(fitting_rows).select("FlightKey", "label", "features"))
+        lr = ml.fit_logistic(fitting_vec, 0.001)
+        all_vec = pipeline.transform(assembled).select("FlightKey", "features")
         offsets = lr.transform(all_vec).select(
             "FlightKey", F.least(F.lit(1 - 1e-7), F.greatest(F.lit(1e-7),
              vector_to_array("probability")[1])).alias("_lr_p"))
         offsets = offsets.withColumn("lr_offset", F.log(F.col("_lr_p") / (1 - F.col("_lr_p")))).drop("_lr_p")
-        exported = pretest.join(offsets, "FlightKey", "left")
+        exported = assembled.join(offsets, "FlightKey", "left")
 
         # Train-only median imputation for the raw dense columns used by host models.
         impute, plain, history, _ = ml.spec_columns(specification)
-        train_for_medians = exported.filter((F.col("Split") == "train") & (F.col("FitEligible") == 1))
-        median_row = train_for_medians.agg(*[
+        median_fitting = exported.filter((F.col("Split") == "train") & (F.col("FitEligible") == 1)) if config.scope == "pretest" else exported.filter(
+            (F.col("Split").isin("train", "validation")) & (F.col("FitEligible") == 1))
+        median_row = median_fitting.agg(*[
             F.percentile_approx(F.col(column).cast("double"), 0.5, 10000).alias(column)
             for column in impute]).first().asDict()
         medians = {column: float(median_row[column] or 0.0) for column in impute}
