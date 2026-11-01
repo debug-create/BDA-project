@@ -133,11 +133,14 @@ def fit_lgb(config, x_train, y_train, x_val, y_val, cat_count):
     return booster, booster.predict(x_val, num_iteration=booster.best_iteration), booster.best_iteration
 
 
-def fit_xgb(config, x_train, y_train, x_val, y_val, cat_count):
+def fit_xgb(config, x_train, y_train, x_val, y_val, cat_count, prepared=None):
     import xgboost as xgb
-    types = ["q"] * (x_train.shape[1] - cat_count) + ["c"] * cat_count
-    train_set = xgb.QuantileDMatrix(x_train, y_train, feature_types=types, enable_categorical=True)
-    val_set = xgb.QuantileDMatrix(x_val, y_val, ref=train_set, feature_types=types, enable_categorical=True)
+    if prepared is None:
+        types = ["q"] * (x_train.shape[1] - cat_count) + ["c"] * cat_count
+        train_set = xgb.QuantileDMatrix(x_train, y_train, feature_types=types, enable_categorical=True)
+        val_set = xgb.QuantileDMatrix(x_val, y_val, ref=train_set, feature_types=types, enable_categorical=True)
+    else:
+        train_set, val_set = prepared
     params = {"objective": "binary:logistic", "eval_metric": "aucpr", "tree_method": "hist",
               "max_depth": config["max_depth"], "eta": config["learning_rate"],
               "subsample": config["subsample"], "colsample_bytree": config["colsample"],
@@ -158,11 +161,14 @@ def cat_object(codes):
     return output
 
 
-def fit_cat(config, numeric_train, cats_train, y_train, numeric_val, cats_val, y_val):
+def fit_cat(config, numeric_train, cats_train, y_train, numeric_val, cats_val, y_val, prepared=None):
     from catboost import CatBoostClassifier, FeaturesData, Pool
-    train_data = FeaturesData(num_feature_data=numeric_train, cat_feature_data=cat_object(cats_train))
-    val_data = FeaturesData(num_feature_data=numeric_val, cat_feature_data=cat_object(cats_val))
-    train_pool = Pool(train_data, y_train); val_pool = Pool(val_data, y_val)
+    if prepared is None:
+        train_data = FeaturesData(num_feature_data=numeric_train, cat_feature_data=cat_object(cats_train))
+        val_data = FeaturesData(num_feature_data=numeric_val, cat_feature_data=cat_object(cats_val))
+        train_pool = Pool(train_data, y_train); val_pool = Pool(val_data, y_val)
+    else:
+        train_pool, val_pool = prepared
     model = CatBoostClassifier(iterations=400, depth=config["max_depth"], learning_rate=config["learning_rate"],
         l2_leaf_reg=config["l2"], random_seed=config["seed"], loss_function="Logloss",
         eval_metric="PRAUC:type=Classic", bootstrap_type="Bernoulli", subsample=config["subsample"],
@@ -184,6 +190,18 @@ def search(model_name, trial_count):
     numeric_fit, cat_fit, y_fit = numeric_train[fit], cat_train[fit], train["label"][fit]
     all_train = np.column_stack([numeric_fit, cat_fit]).astype(np.float32)
     all_val = np.column_stack([numeric_val, cat_val]).astype(np.float32)
+    prepared = None
+    if model_name == "xgboost":
+        import xgboost as xgb
+        types = ["q"] * numeric_fit.shape[1] + ["c"] * cat_fit.shape[1]
+        train_matrix = xgb.QuantileDMatrix(all_train, y_fit, feature_types=types, enable_categorical=True)
+        val_matrix = xgb.QuantileDMatrix(all_val, val["label"], ref=train_matrix,
+                                         feature_types=types, enable_categorical=True)
+        prepared = (train_matrix, val_matrix)
+    elif model_name == "catboost":
+        from catboost import FeaturesData, Pool
+        prepared = (Pool(FeaturesData(num_feature_data=numeric_fit, cat_feature_data=cat_object(cat_fit)), y_fit),
+                    Pool(FeaturesData(num_feature_data=numeric_val, cat_feature_data=cat_object(cat_val)), val["label"]))
     log_path = common.RESULTS / f"{model_name}_search.csv"
     fieldnames = ["model", "trial", "status", "pr_auc", "roc_auc", "best_iteration", "seconds",
                   "peak_rss_bytes", "config", "error"]
@@ -202,10 +220,10 @@ def search(model_name, trial_count):
                 if model_name == "lightgbm":
                     fitted, score, best_iteration = fit_lgb(config, all_train, y_fit, all_val, val["label"], cat_train.shape[1])
                 elif model_name == "xgboost":
-                    fitted, score, best_iteration = fit_xgb(config, all_train, y_fit, all_val, val["label"], cat_train.shape[1])
+                    fitted, score, best_iteration = fit_xgb(config, all_train, y_fit, all_val, val["label"], cat_train.shape[1], prepared)
                 else:
                     fitted, score, best_iteration = fit_cat(config, numeric_fit, cat_fit, y_fit,
-                                                             numeric_val, cat_val, val["label"])
+                                                             numeric_val, cat_val, val["label"], prepared)
                 measured = common.metrics(val["label"], score)
                 row.update(status="SUCCEEDED", pr_auc=measured["pr_auc"], roc_auc=measured["roc_auc"],
                            best_iteration=best_iteration, error="")
