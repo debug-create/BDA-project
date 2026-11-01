@@ -137,8 +137,10 @@ def fit_xgb(config, x_train, y_train, x_val, y_val, cat_count, prepared=None):
     import xgboost as xgb
     if prepared is None:
         types = ["q"] * (x_train.shape[1] - cat_count) + ["c"] * cat_count
-        train_set = xgb.QuantileDMatrix(x_train, y_train, feature_types=types, enable_categorical=True)
-        val_set = xgb.QuantileDMatrix(x_val, y_val, ref=train_set, feature_types=types, enable_categorical=True)
+        train_set = xgb.QuantileDMatrix(x_train, y_train, feature_types=types,
+                                        enable_categorical=True, max_bin=128)
+        val_set = xgb.QuantileDMatrix(x_val, y_val, ref=train_set, feature_types=types,
+                                      enable_categorical=True, max_bin=128)
     else:
         train_set, val_set = prepared
     params = {"objective": "binary:logistic", "eval_metric": "aucpr", "tree_method": "hist",
@@ -194,9 +196,10 @@ def search(model_name, trial_count):
     if model_name == "xgboost":
         import xgboost as xgb
         types = ["q"] * numeric_fit.shape[1] + ["c"] * cat_fit.shape[1]
-        train_matrix = xgb.QuantileDMatrix(all_train, y_fit, feature_types=types, enable_categorical=True)
+        train_matrix = xgb.QuantileDMatrix(all_train, y_fit, feature_types=types,
+                                           enable_categorical=True, max_bin=128)
         val_matrix = xgb.QuantileDMatrix(all_val, val["label"], ref=train_matrix,
-                                         feature_types=types, enable_categorical=True)
+                                         feature_types=types, enable_categorical=True, max_bin=128)
         prepared = (train_matrix, val_matrix)
     elif model_name == "catboost":
         from catboost import FeaturesData, Pool

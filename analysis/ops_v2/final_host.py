@@ -68,8 +68,10 @@ def phase1_fixed(name, fit, test, config, iterations):
                   "subsample": config["subsample"], "colsample_bytree": config["colsample"],
                   "reg_lambda": config["l2"], "min_child_weight": config["min_child"],
                   "max_bin": 128, "seed": config["seed"], "nthread": 11}
-        train_matrix = xgb.QuantileDMatrix(all_fit, y, feature_types=types, enable_categorical=True)
-        test_matrix = xgb.QuantileDMatrix(all_test, ref=train_matrix, feature_types=types, enable_categorical=True)
+        train_matrix = xgb.QuantileDMatrix(all_fit, y, feature_types=types,
+                                           enable_categorical=True, max_bin=128)
+        test_matrix = xgb.QuantileDMatrix(all_test, ref=train_matrix, feature_types=types,
+                                          enable_categorical=True, max_bin=128)
         return xgb.train(params, train_matrix, num_boost_round=iterations).predict(test_matrix)
     from catboost import CatBoostClassifier, FeaturesData, Pool
     train_pool = Pool(FeaturesData(num_feature_data=numeric_fit,
