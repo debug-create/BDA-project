@@ -50,8 +50,11 @@ def args():
 def export_base(source, holidays):
     """Existing schedule features plus raw labels/keys retained for export."""
     raw = source.filter(ml.eligible_condition())
+    # Duplicate natural keys exist because the source omits flight number/tail.
+    # The technical ordinal may use schedule fields only: outcomes must not
+    # influence even metadata identity at prediction time.
     order = [F.col(name).asc_nulls_last() for name in
-             ["ArrDel15", "ArrDelay", "DepDelay", "CRSArrTime", "CRSElapsedTime", "Distance"]]
+             ["CRSArrTime", "CRSElapsedTime", "Distance", "DepTimeBlk"]]
     ordinal = F.row_number().over(Window.partitionBy(*NATURAL_KEY).orderBy(*order))
     raw = raw.withColumn("FlightKeyOrdinal", ordinal)
     raw = raw.withColumn("FlightKey", F.sha2(F.concat_ws("|", *[
