@@ -72,6 +72,8 @@ def main():
             measured = common.metrics(validation["label"], score)
             models[name] = {
                 "metrics": measured,
+                "calibration": common.calibration(validation["label"], score),
+                "f1_threshold": common.best_f1_threshold(validation["label"], score),
                 "bootstrap_vs_frozen_utc_lr": common.date_block_bootstrap(
                     validation["date"], validation["label"], score, reference, replicates=1000),
                 "config": json.loads(summary_path.read_text(encoding="utf-8"))["config"],

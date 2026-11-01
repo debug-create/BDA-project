@@ -34,3 +34,4 @@ Thumbs.db
 /results/experiments/ml_redesign/ops_v2/host_export/
 results/experiments/ml_redesign/ops_v2/host_models/
 results/experiments/ml_redesign/ops_v2/dl_checkpoints/
+results/experiments/ml_redesign/ops_v2/dl/
