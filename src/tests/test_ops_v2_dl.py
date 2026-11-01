@@ -43,6 +43,12 @@ def test_unknown_ids_are_supported():
     assert output["main"].shape == (4,)
 
 
+def test_no_embedding_ablation_uses_carrier_and_hour_onehot():
+    model = tiny_model(use_embeddings=False, simple_onehot=True).eval()
+    dense, categories, states, offset = inputs()
+    assert model(dense, categories, states, offset)["main"].shape == (4,)
+
+
 def test_auxiliary_targets_are_not_forward_arguments_and_gradients_are_valid():
     model = tiny_model()
     assert "arr_minutes" not in model.forward.__code__.co_varnames

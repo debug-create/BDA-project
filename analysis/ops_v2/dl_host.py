@@ -44,8 +44,16 @@ def category_arrays(train, validation):
     encoded_train, encoded_validation, all_vocab = common.encode_categories(train, validation)
     all_names = list(train["categories_raw"])
     indices = [all_names.index(name) for name in CATEGORY_NAMES]
+    train_selected = encoded_train[:, indices]
+    validation_selected = encoded_validation[:, indices]
+    hash_column = CATEGORY_NAMES.index("RouteHash65536")
+    # The route hash is a fixed 2^16 mapping, not a learned vocabulary.  Zero
+    # remains reserved for UNK/dropout, hence the +1 shift.
+    train_selected[:, hash_column] = train["categories_raw"]["RouteHash65536"].astype(int).to_numpy(np.int32) + 1
+    validation_selected[:, hash_column] = validation["categories_raw"]["RouteHash65536"].astype(int).to_numpy(np.int32) + 1
     vocab = {name: all_vocab[name]["size_including_unk"] for name in CATEGORY_NAMES}
-    return encoded_train[:, indices], encoded_validation[:, indices], vocab
+    vocab["RouteHash65536"] = 65537
+    return train_selected, validation_selected, vocab
 
 
 def state_arrays(data):
@@ -123,6 +131,7 @@ def train_once(train, validation, vocab, config, seed, max_epochs, variant="full
         use_states=variant not in {"no_states", "plain_mlp"},
         use_embeddings=variant not in {"no_embeddings", "plain_mlp"},
         use_offset=variant != "no_offset",
+        simple_onehot=variant == "no_embeddings",
     ).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["lr"], weight_decay=1e-4)
     fit_ids = np.flatnonzero(train["fit_eligible"])
@@ -207,7 +216,13 @@ def search(count, max_epochs):
         rows.append(row); save_json(RESULTS / "search_log.json", rows); print(json.dumps(row), flush=True); gc.collect()
     successful = [row for row in rows if row["status"] == "SUCCEEDED"]
     if not successful: raise RuntimeError("all deep search configurations failed")
-    best = max(successful, key=lambda row: row["validation_pr_auc"])
+    best_score = max(row["validation_pr_auc"] for row in successful)
+    within_margin = [row for row in successful if row["validation_pr_auc"] >= best_score - .002]
+    # Apply the specified +0.002 margin in favour of the smaller architecture.
+    best = min(within_margin, key=lambda row: (
+        row["width"], row["embedding_scale"], row["state_kind"] == "gru", row["dropout"], row["config"]))
+    best["absolute_best_validation_pr_auc"] = best_score
+    best["selected_with_simplicity_margin"] = float(best["validation_pr_auc"]) < float(best_score)
     save_json(RESULTS / "search_best.json", best)
     print("PHASE2_SEARCH_STATUS=SUCCEEDED")
 
@@ -224,7 +239,10 @@ def ensemble(max_epochs, variant="full"):
     ensemble_score = common.sigmoid(np.mean(np.stack([np.log(np.clip(score, 1e-7, 1-1e-7) /
                                                         np.clip(1-score, 1e-7, 1)) for score in scores]), axis=0))
     np.save(RESULTS / f"{variant}_validation_scores.npy", ensemble_score.astype(np.float32))
+    seed_pr = [row["pr_auc"] for row in runs]
     summary = {"variant": variant, "seeds": SEEDS, "runs": runs,
+               "seed_pr_auc_mean": float(np.mean(seed_pr)),
+               "seed_pr_auc_std": float(np.std(seed_pr, ddof=1)),
                "ensemble": common.metrics(validation["label"], ensemble_score),
                "threshold": common.best_f1_threshold(validation["label"], ensemble_score),
                "calibration": common.calibration(validation["label"], ensemble_score)}

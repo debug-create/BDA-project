@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 
 EMBED_DIMS = {
@@ -60,17 +61,25 @@ class FlightDelayResidualNet(nn.Module):
 
     def __init__(self, dense_dim, vocab_sizes, state_channels, *, width=256,
                  dropout=0.25, embedding_scale=1.0, state_kind="conv",
-                 use_states=True, use_embeddings=True, use_offset=True):
+                 use_states=True, use_embeddings=True, use_offset=True,
+                 simple_onehot=False):
         super().__init__()
         self.category_names = list(EMBED_DIMS)
         self.use_states = use_states
         self.use_embeddings = use_embeddings
         self.use_offset = use_offset
+        self.simple_onehot = simple_onehot
+        self.vocab_sizes = vocab_sizes
         self.embeddings = nn.ModuleDict({
             name: nn.Embedding(vocab_sizes[name], max(1, round(EMBED_DIMS[name] * embedding_scale)), padding_idx=0)
             for name in self.category_names
         })
-        embedding_dim = sum(layer.embedding_dim for layer in self.embeddings.values()) if use_embeddings else 0
+        if use_embeddings:
+            embedding_dim = sum(layer.embedding_dim for layer in self.embeddings.values())
+        elif simple_onehot:
+            embedding_dim = vocab_sizes["Reporting_Airline"] + vocab_sizes["ScheduledDepHour"]
+        else:
+            embedding_dim = 0
         self.dense = nn.Sequential(nn.LayerNorm(dense_dim), nn.Linear(dense_dim, 128), nn.GELU(), nn.Dropout(dropout))
         self.states = nn.ModuleDict({name: StateEncoder(channels, state_kind) for name, channels in state_channels.items()})
         state_dim = 32 * len(state_channels) if use_states else 0
@@ -98,6 +107,12 @@ class FlightDelayResidualNet(nn.Module):
                     ids = ids.masked_fill(torch.rand_like(ids, dtype=torch.float32) < probability, 0)
                 embedded.append(self.embeddings[name](ids))
             pieces.append(torch.cat(embedded, dim=1))
+        elif self.simple_onehot:
+            carrier = F.one_hot(categories[:, self.category_names.index("Reporting_Airline")],
+                                self.vocab_sizes["Reporting_Airline"]).to(dense.dtype)
+            hour = F.one_hot(categories[:, self.category_names.index("ScheduledDepHour")],
+                             self.vocab_sizes["ScheduledDepHour"]).to(dense.dtype)
+            pieces.append(torch.cat([carrier, hour], dim=1))
         if self.use_states:
             pieces.extend(self.states[name](states[name]) for name in self.states)
         hidden = self.fusion(torch.cat(pieces, dim=1))
