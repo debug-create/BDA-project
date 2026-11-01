@@ -5,6 +5,7 @@ import argparse
 import csv
 import gc
 import json
+import os
 import pickle
 import random
 import time
@@ -21,6 +22,10 @@ import host_common as common
 
 SEED = 20261101
 TRIALS = 40
+
+
+def worker_threads():
+    return int(os.environ.get("OPS_V2_THREADS", max(1, (psutil.cpu_count(logical=True) or 2) - 1)))
 
 
 def cli():
@@ -115,7 +120,7 @@ def configurations(model, count):
 def fit_lgb(config, x_train, y_train, x_val, y_val, cat_count):
     import lightgbm as lgb
     params = {"objective": "binary", "metric": "average_precision", "verbosity": -1,
-              "num_threads": max(1, psutil.cpu_count(logical=True) - 1), "seed": config["seed"],
+              "num_threads": worker_threads(), "seed": config["seed"],
               "max_depth": config["max_depth"], "num_leaves": min(2 ** config["max_depth"], 127),
               "learning_rate": config["learning_rate"], "bagging_fraction": config["subsample"],
               "bagging_freq": 1, "feature_fraction": config["colsample"], "lambda_l2": config["l2"],
@@ -137,7 +142,7 @@ def fit_xgb(config, x_train, y_train, x_val, y_val, cat_count):
               "max_depth": config["max_depth"], "eta": config["learning_rate"],
               "subsample": config["subsample"], "colsample_bytree": config["colsample"],
               "reg_lambda": config["l2"], "min_child_weight": config["min_child"],
-              "max_bin": 128, "seed": config["seed"], "nthread": max(1, psutil.cpu_count() - 1)}
+              "max_bin": 128, "seed": config["seed"], "nthread": worker_threads()}
     booster = xgb.train(params, train_set, 400, evals=[(val_set, "validation")],
                         early_stopping_rounds=25, verbose_eval=False)
     score = booster.predict(val_set, iteration_range=(0, booster.best_iteration + 1))
@@ -162,7 +167,7 @@ def fit_cat(config, numeric_train, cats_train, y_train, numeric_val, cats_val, y
         l2_leaf_reg=config["l2"], random_seed=config["seed"], loss_function="Logloss",
         eval_metric="PRAUC:type=Classic", bootstrap_type="Bernoulli", subsample=config["subsample"],
         rsm=config["colsample"], min_data_in_leaf=config["min_child"], grow_policy="Lossguide",
-        thread_count=max(1, psutil.cpu_count() - 1), verbose=False, allow_writing_files=False,
+        thread_count=worker_threads(), verbose=False, allow_writing_files=False,
         od_type="Iter", od_wait=25, use_best_model=True)
     model.fit(train_pool, eval_set=val_pool)
     return model, model.predict_proba(val_pool)[:, 1], model.get_best_iteration() + 1

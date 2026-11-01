@@ -8,6 +8,7 @@ import csv
 import gc
 import json
 import math
+import os
 import random
 import time
 from pathlib import Path
@@ -121,7 +122,8 @@ def predict(model, data, device, batch_size=8192):
 
 
 def train_once(train, validation, vocab, config, seed, max_epochs, variant="full"):
-    set_seed(seed); torch.set_num_threads(max(1, (psutil.cpu_count(logical=True) or 2) - 1))
+    set_seed(seed); torch.set_num_threads(int(os.environ.get(
+        "OPS_V2_THREADS", max(1, (psutil.cpu_count(logical=True) or 2) - 1))))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     state_channels = {name: values.shape[2] for name, values in train["states"].items()}
     model = FlightDelayResidualNet(
