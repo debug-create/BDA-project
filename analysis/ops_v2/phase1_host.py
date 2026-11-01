@@ -232,6 +232,17 @@ def search(model_name, trial_count):
                            best_iteration=best_iteration, error="")
                 if best is None or measured["pr_auc"] > best[0]:
                     best = (measured["pr_auc"], config, fitted, score.astype(np.float32), best_iteration, measured)
+                    # Persist the incumbent immediately so a long search can
+                    # resume without losing the strongest completed model.
+                    np.save(common.RESULTS / f"{model_name}_validation_scores.npy", best[3])
+                    with (common.RESULTS / f"{model_name}_best_model.pkl").open("wb") as model_handle:
+                        pickle.dump(fitted, model_handle)
+                    write_json(common.RESULTS / f"{model_name}_best.json", {
+                        "model": model_name, "best_validation": measured, "config": config,
+                        "best_iteration": best_iteration,
+                        "threshold": common.best_f1_threshold(val["label"], best[3]),
+                        "calibration": common.calibration(val["label"], best[3]),
+                    })
             except Exception as exc:
                 row.update(status="FAILED", pr_auc="", roc_auc="", best_iteration="",
                            error=f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}")
