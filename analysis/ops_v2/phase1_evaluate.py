@@ -89,6 +89,9 @@ def main():
         hold_ids = np.flatnonzero((train["date"] >= start) & (train["date"] < stop))
         fit_data = subset(train, fit_ids); holdout = subset(train, hold_ids)
         lr_score, candidate = fold_scores(winner, config, fit_data, holdout)
+        np.savez_compressed(OUT / f"fold_{start_text}.npz", label=holdout["label"],
+                            lr_score=lr_score.astype(np.float32),
+                            candidate_score=np.asarray(candidate, dtype=np.float32))
         lr_metrics = common.metrics(holdout["label"], lr_score)
         candidate_metrics = common.metrics(holdout["label"], candidate)
         folds.append({
