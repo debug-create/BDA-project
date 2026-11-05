@@ -4,6 +4,8 @@ Spark/Hadoop mini-project using 1,781,482 US domestic flight records from Octobe
 
 The actual-data pipeline has been validated and executed on Spark 3.5.9 over YARN with two worker containers. See [the data report](docs/DATA_VALIDATION_REPORT.md), [actual-data ML results](docs/ACTUAL_DATA_ML_RESULTS.md), and [test evidence](docs/TEST_RUN_LOG.md).
 
+For the UTC-correct operations model comparison, frozen fourth-design evaluation, and current team handoff status, see [OPS V2 results](docs/OPS_V2_REPORT.md) and the [project status report](docs/PROJECT_STATUS_REPORT.md).
+
 ## Design and leakage controls
 
 - Train: 2024-10-01–2024-11-24; validation: 2024-11-25–2024-12-03; test: 2024-12-04–2024-12-31.

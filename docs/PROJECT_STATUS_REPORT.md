@@ -1,16 +1,16 @@
 # Project Status and Team Handoff
 
 **Reviewed:** 2026-11-05
-**Repository branch:** `codex/ops-v2`
+**Repository branch:** `codex/project-handoff`
 **Purpose:** Give the frontend and ML workstreams a shared, evidence-based starting point.
 
 ## Executive status
 
 This repository contains a working batch data pipeline for US domestic flight records from October through December 2024. It uses Hadoop HDFS for storage, YARN to run Spark jobs, Spark SQL for holiday analysis, and Spark MLlib plus separate host-side experiments for flight-delay models. The cleaned dataset contains 1,781,482 flights; 1,765,279 eligible as-of feature rows are reported by the current OPS V2 state export.
 
-The data validation, cleaning, holiday analysis, schedule-only ML work, UTC-correct T−120 operations features, and validation/fold model comparisons are documented. The strongest candidate so far is XGBoost with the UTC-correct operations features. It passed the validation and rolling-fold gate; the deep-learning candidate did not. The required **FOURTH DESIGN EVALUATION** is not complete.
+The data validation, cleaning, holiday analysis, schedule-only ML work, UTC-correct T−120 operations features, validation/fold model comparisons, and required **FOURTH DESIGN EVALUATION** are complete and documented. XGBoost with UTC-correct operations features passed the validation and rolling-fold gate; the deep-learning candidate did not. The frozen XGBoost test PR-AUC was 0.41980 versus 0.40524 for the UTC-LR refit reference.
 
-There is currently no frontend application, web server, prediction API, or UI component in the tracked source tree. The frontend teammate can build the presentation layer independently using the reports, plots, and explicitly labelled sample results in this repository. The ML workstream still needs to finish or formally close the fourth evaluation and update its report with the actual execution status and results.
+There is currently no frontend application, web server, prediction API, or UI component in the tracked source tree. The frontend teammate can build the presentation layer independently using the reports, plots, and explicitly labelled results in this repository. The ML evaluation is closed for this dataset; only work on an independent future test window can support additional model-selection claims.
 
 ## Repository map
 
@@ -58,17 +58,11 @@ XGBoost's validation gain over frozen LR was +0.01806 PR-AUC; paired date-block 
 
 ## Fourth evaluation: current state
 
-The owner asked to pause the ongoing processing to review the codebase and prepare a teammate handoff. I stopped the OPS V2 test host-feature export. YARN reports its application as `KILLED`, with no active YARN applications remaining at review time. The export path contains only checkpoint/pre-test directories and no completed test feature export files. The retry had passed the freeze guard, UTC checks, and state-row-count check (1,765,279 rows, 108 columns), but was stopped during feature computation. The first attempt had failed with driver out-of-memory and was also killed.
+The guarded fourth evaluation completed. Its frozen XGBoost model scored test PR-AUC 0.41980, ROC-AUC 0.70198, top-decile precision 0.52349, and top-decile lift 2.456. Compared with the UTC-LR refit on the same test rows, the paired 28-date bootstrap PR-AUC gain was +0.01455 (95% CI [+0.00689, +0.02273]). Holiday-slice PR-AUC was 0.48138 for XGBoost versus 0.47308 for UTC-LR during Christmas/New Year, and 0.33147 versus 0.30762 on regular days. Full metrics and interpretation are in `docs/OPS_V2_REPORT.md`; the machine-readable output is in the ignored local path `results/experiments/ml_redesign/ops_v2/fourth_design/test_results.json`.
 
-Therefore:
+The test window was opened and scored for the fourth time. The validation/fold freeze remains the model decision boundary; these test results do not authorize additional tuning. Do not use this test window to select another model. A new time window is needed for further generalization claims.
 
-- The fourth evaluation has **no final model metrics** and must not be described as completed.
-- The already committed freeze remains the decision boundary; no model choice was changed based on test results.
-- Because the fourth test export started and the test pipeline was opened, treat this test window as accessed for the fourth run. Do not claim it was untouched or pristine.
-- To resume ML work, inspect the retained YARN logs and checkpoint directory, decide whether to resume/rebuild the export safely, complete the single frozen evaluation if its guard still passes, and append exact results or a clear failure status to `docs/OPS_V2_REPORT.md`.
-- Do not tune or select another model from this test window. The test has already been used for prior design evaluations as documented in `docs/ASOF_TZ_REPORT.md`.
-
-The host test export was memory/plan intensive and emitted repeated unpartitioned-window warnings before interruption. The earlier attempt ran out of driver memory; the retry used a 2 GB driver and reached feature construction but did not finish. Treat runtime cost and memory pressure as active engineering risks. Do not increase resource requests without inspecting the retained logs and cluster capacity.
+The export took about 30 minutes and reconciled 1,765,279 eligible rows with zero duplicate technical keys and no non-label nulls. An earlier attempt ran out of driver memory; the successful run used a 2 GB driver and 512 MB executors. The first export wrote the supposed local Parquet path to HDFS because the cluster default filesystem is HDFS. The data was copied to `C:\bda\ops_v2\test` for host scoring, and the exporter now uses an explicit `file://` URI for host output. The Docker cluster was stopped after scoring; its named HDFS volume remains intact.
 
 ## Frontend teammate handoff
 
@@ -86,11 +80,9 @@ Suggested initial screens: project overview and pipeline, dataset/split summary,
 
 ## ML teammate / owner next steps
 
-1. Resume from `codex/ops-v2` and review `docs/OPS_V2_REPORT.md`, the frozen JSON under `results/experiments/ml_redesign/ops_v2/`, and retained host-export logs/checkpoints.
-2. Verify the pre-test freeze guard and exact checkpoint completeness before attempting continuation. If the partial output cannot be safely resumed, restart only the feature export/scoring needed for the already frozen candidate; do not change features, model, or threshold based on test.
-3. Complete the guarded fourth-design evaluation once, if safe, and write a factual result or failure record. The report must distinguish no output, partial feature export, and scored evaluation.
-4. Review repository hygiene before pushing: commit the handoff report and intended project files only. Do not add local data, model artifacts, Docker state, or generated experiment dumps.
-5. After ML closure, update the README with links to this report and the final OPS V2 result, then coordinate with the frontend teammate on the shared display schema.
+1. Do not tune on the reused test window; obtain a later independent time period before making further model-selection or deployment claims.
+2. Review repository hygiene before pushing: commit only intended source and documentation. Do not add local data, model artifacts, Docker state, or generated experiment dumps.
+3. Coordinate with the frontend teammate on a shared display schema; no prediction-serving API exists yet.
 
 ## Key documentation
 
@@ -98,6 +90,6 @@ Suggested initial screens: project overview and pipeline, dataset/split summary,
 - [DATA_VALIDATION_REPORT.md](DATA_VALIDATION_REPORT.md): real dataset and split validation.
 - [ACTUAL_DATA_ML_RESULTS.md](ACTUAL_DATA_ML_RESULTS.md): earlier schedule/history model results.
 - [ASOF_TZ_REPORT.md](ASOF_TZ_REPORT.md): UTC time-zone correction, third evaluation, coverage, and leakage checks.
-- [OPS_V2_REPORT.md](OPS_V2_REPORT.md): Phase 1/2 comparisons, frozen choice, and pending fourth evaluation.
+- [OPS_V2_REPORT.md](OPS_V2_REPORT.md): Phase 1/2 comparisons, frozen choice, and completed fourth evaluation.
 - [TEST_RUN_LOG.md](TEST_RUN_LOG.md): what the synthetic correctness suite actually covered and test markers.
 - [DIAGNOSTICS_REPORT.md](DIAGNOSTICS_REPORT.md): threshold transfer, slices, and ranking diagnostics.

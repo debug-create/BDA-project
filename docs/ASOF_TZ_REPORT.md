@@ -153,4 +153,4 @@ docker exec master bash -lc 'spark-submit --master "local[2]" --conf spark.event
 - PBI has no metadata match in the pinned airport database and therefore receives fallback features.
 - Validation contains only nine dates, so its date-block interval is informative but not high-powered.
 - Christmas/New Year is unseen before the test window. Its category effect cannot be learned; slice performance partly reflects its higher prevalence.
-- The test window has now been used three times. Further model choices must not be justified from these test results.
+- At the time of this report, the test window had been used three times. The subsequent frozen fourth evaluation is documented in `OPS_V2_REPORT.md`; do not use this window for further model selection.

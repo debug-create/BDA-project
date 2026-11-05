@@ -289,7 +289,11 @@ def main():
 
         out_local = f"{LOCAL_ROOT}/{config.scope}"
         out_hdfs = f"{HDFS_ROOT}/{config.scope}"
-        exported.repartition(32, "Split").write.mode("overwrite").partitionBy("Split").parquet(out_local)
+        # The cluster's Hadoop default filesystem is HDFS, so an absolute
+        # /results path is otherwise resolved as HDFS too. Force the host
+        # bind-mount write onto the container's local filesystem.
+        local_uri = f"file://{out_local}"
+        exported.repartition(32, "Split").write.mode("overwrite").partitionBy("Split").parquet(local_uri)
         exported.repartition(32, "Split").write.mode("overwrite").partitionBy("Split").parquet(out_hdfs)
         metadata = {
             "scope": config.scope, "test_opened": config.scope == "test", "rows": counts,

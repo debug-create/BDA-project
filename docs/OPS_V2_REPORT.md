@@ -2,7 +2,7 @@
 
 ## Evaluation boundary
 
-All model choices below were made from the train, validation, and four rolling-origin validation folds. The sealed test split was not read for Phase 1 or Phase 2. The freeze artifact is committed before the authorized final test export and evaluation. The result of that run will be appended after it finishes.
+All model choices below were made from the train, validation, and four rolling-origin validation folds. The sealed test split was not read for Phase 1 or Phase 2. The freeze artifact was committed before the authorized final test export and evaluation. The one post-freeze run is complete and recorded below; its results did not change the frozen choice.
 
 ## Phase 1: boosted models
 
@@ -46,5 +46,25 @@ The validation date-block bootstrap for DL minus XGBoost had mean -0.00143 and 9
 
 ## Frozen choice and limitations
 
-The final candidate is XGBoost, with UTC-correct variant d and all 16 operations features. The Phase-1 pass authorizes the one final test evaluation; Phase 2 does not. The model is a ranking aid: validation top-decile precision is about 37%, not a reliable per-flight guarantee. Fold performance varies substantially by week, and the train-validation gap indicates overfitting risk. Test results will be reported exactly once under the required label, without using them to change the model choice.
+The final candidate is XGBoost, with UTC-correct variant d and all 16 operations features. The Phase-1 pass authorized the one final test evaluation; Phase 2 did not. The model is a ranking aid: validation top-decile precision is about 37%, not a reliable per-flight guarantee. Fold performance varies substantially by week, and the train-validation gap indicates overfitting risk. The completed test result is below; it did not change the model choice.
+
+## FOURTH DESIGN EVALUATION
+
+The committed freeze selected XGBoost with the UTC-correct feature set and all 16 operations features. The Phase 2 deep model was not run on test because it failed the validation/fold gate. The post-freeze host export reconciled 1,067,747 train rows, 173,549 validation rows, and 523,983 test rows; it found zero duplicate technical flight keys and zero nulls in non-label exported features. Test prevalence was 0.21318. Scoring used the frozen XGBoost configuration and iteration count. The UTC-LR comparator was refit on train plus validation using the same UTC feature export.
+
+| Model | Test PR-AUC | Test ROC-AUC | Top-10% precision | Top-10% recall | Top-10% lift |
+|---|---:|---:|---:|---:|---:|
+| UTC-LR refit reference | 0.40524 | 0.68708 | 0.50134 | 0.23517 | 2.352 |
+| Frozen XGBoost | **0.41980** | **0.70198** | **0.52349** | **0.24556** | **2.456** |
+
+The paired 28-date block bootstrap for XGBoost minus UTC-LR test PR-AUC had mean **+0.01455**, with 1,000 replicates and 95% CI **[+0.00689, +0.02273]**. Both scores exceed the 0.21318 test prevalence baseline. The top decile selected by XGBoost contains 52.35% delayed flights, versus 50.13% for UTC-LR and 21.32% overall.
+
+| Test slice | Flights | Delay prevalence | UTC-LR PR-AUC | XGBoost PR-AUC |
+|---|---:|---:|---:|---:|
+| Christmas/New Year | 225,777 | 0.26799 | 0.47308 | **0.48138** |
+| Regular day | 298,206 | 0.17169 | 0.30762 | **0.33147** |
+
+XGBoost ranked better than UTC-LR on this test run, including both reported slices. This is a descriptive result for the already-used test period, not evidence for further tuning or a new model-selection decision. PR-AUC depends on prevalence, and test prevalence is higher than validation prevalence; compare the two models on the same test rows rather than interpreting the absolute validation-to-test change as a clean measure of generalization. The validation train-to-validation gap and week-to-week fold variation remain material limitations. The test window has now been used for the fourth design evaluation; use a new time period for further generalization claims.
+
+Execution markers: `HOST_EXPORT_STATUS=SUCCEEDED` and `FOURTH_DESIGN_EVALUATION_STATUS=SUCCEEDED`. The export required an HDFS-to-host copy because the cluster's default filesystem treated the script's absolute `/results` Parquet output as an HDFS path. The exporter now writes its host output with an explicit `file://` URI. The canonical HDFS export remains under `/user/root/flights/experiments/ml_redesign/ops_v2/host_export/test`.
 
