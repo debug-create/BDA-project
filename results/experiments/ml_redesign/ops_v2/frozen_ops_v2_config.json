@@ -1,0 +1,26 @@
+{
+  "branch": "codex/ops-v2",
+  "feature_variant": "d_utc_all_16_operations_features",
+  "phase1_model": "xgboost",
+  "phase1_passed": true,
+  "phase1_validation_pr_auc": 0.30590050927974344,
+  "phase1_rolling_mean_gain_vs_utc_lr": 0.031030135920914192,
+  "phase1_validation_bootstrap_ci_95": [
+    0.010312146217187956,
+    0.027656081591571083
+  ],
+  "phase2_model": "deep_ensemble",
+  "phase2_passed": false,
+  "phase2_validation_pr_auc": 0.30413956319974866,
+  "phase2_rolling_mean_gain_vs_xgboost": -0.03825573169372025,
+  "phase2_validation_bootstrap_ci_95": [
+    -0.00977401212264314,
+    0.006992249630671495
+  ],
+  "run_dl_test": false,
+  "decisions_frozen": true,
+  "committed_before_test": true,
+  "test_authorized": true,
+  "test_opened": false,
+  "test_label": "FOURTH DESIGN EVALUATION"
+}

@@ -30,9 +30,12 @@ STREAMS = ["origin_departures", "origin_inbound", "carrier_network", "destinatio
 
 def arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--stage", choices=["search", "ensemble", "ablations"], required=True)
+    parser.add_argument("--stage", choices=["search", "ensemble", "ablations", "summarize-ablations"], required=True)
     parser.add_argument("--configs", type=int, default=12)
     parser.add_argument("--max-epochs", type=int, default=15)
+    parser.add_argument("--variant", default="full",
+                        choices=["full", "no_aux", "no_states", "no_offset",
+                                 "no_embeddings", "gru", "plain_mlp"])
     return parser.parse_args()
 
 
@@ -260,9 +263,22 @@ def ablations(max_epochs):
     print("PHASE2_ABLATIONS_STATUS=SUCCEEDED")
 
 
+def summarize_ablations():
+    variants = ["no_aux", "no_states", "no_offset", "no_embeddings", "gru", "plain_mlp"]
+    summaries = {
+        variant: json.loads((RESULTS / f"{variant}_summary.json").read_text(encoding="utf-8"))
+        for variant in variants
+    }
+    save_json(RESULTS / "ablation_summary.json", summaries)
+    print("PHASE2_ABLATIONS_STATUS=SUCCEEDED")
+
+
 if __name__ == "__main__":
     options = arguments()
     if options.stage == "search": search(options.configs, options.max_epochs)
     elif options.stage == "ensemble":
-        ensemble(options.max_epochs); print("PHASE2_ENSEMBLE_STATUS=SUCCEEDED")
-    else: ablations(options.max_epochs)
+        ensemble(options.max_epochs, options.variant); print("PHASE2_ENSEMBLE_STATUS=SUCCEEDED")
+    elif options.stage == "ablations":
+        ablations(options.max_epochs)
+    else:
+        summarize_ablations()
