@@ -2,6 +2,18 @@
 
 Spark/Hadoop mini-project using 1,781,482 US domestic flight records from October–December 2024. The ML stage predicts `ArrDel15` for non-cancelled, non-diverted flights using only information available before scheduled departure.
 
+## Frontend results site
+
+The static React results site lives in `frontend/`. It presents the project as a five-section "Departure Board for Delays" report, with an additional data view available by URL. It does not provide live predictions or require a backend.
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Create the deployable static build with `npm run build`; the output is written to `frontend/dist/`. All displayed result values are loaded from the checked-in JSON files. The production site is available at [frontend-nu-seven-46.vercel.app](https://frontend-nu-seven-46.vercel.app/).
+
 The actual-data pipeline has been validated and executed on Spark 3.5.9 over YARN with two worker containers. See [the data report](docs/DATA_VALIDATION_REPORT.md), [actual-data ML results](docs/ACTUAL_DATA_ML_RESULTS.md), and [test evidence](docs/TEST_RUN_LOG.md).
 
 For the UTC-correct operations model comparison, frozen fourth-design evaluation, and current team handoff status, see [OPS V2 results](docs/OPS_V2_REPORT.md) and the [project status report](docs/PROJECT_STATUS_REPORT.md).
