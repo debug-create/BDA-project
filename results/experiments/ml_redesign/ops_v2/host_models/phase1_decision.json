@@ -1,0 +1,18 @@
+{
+  "winner": "xgboost",
+  "validation_gain_vs_frozen_utc_lr": 0.018063663272449904,
+  "rolling_gain_mean": 0.031030135920914192,
+  "rolling_gain_std": 0.02544082923346003,
+  "validation_bootstrap": {
+    "replicates": 1000,
+    "seed": 20261101,
+    "date_blocks": 9,
+    "mean": 0.018152150588356227,
+    "ci_95_low": 0.010312146217187956,
+    "ci_95_high": 0.027656081591571083
+  },
+  "selection_margin_met": true,
+  "decision_rule_passed": true,
+  "test_authorized_by_phase1_alone": true,
+  "test_opened": false
+}

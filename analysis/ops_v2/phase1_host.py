@@ -163,6 +163,49 @@ def cat_object(codes):
     return output
 
 
+def restore_search_incumbent(model_name, successful_trials, expected_score_rows, results_dir=None):
+    """Restore the persisted best trial before skipping completed trials.
+
+    Search CSV rows alone are not enough to resume safely: the best model,
+    validation scores, and summary must all be present and refer to a trial
+    recorded as successful.  If any piece is missing/corrupt, the caller must
+    rerun the successful trials rather than silently losing the incumbent.
+    """
+    root = Path(results_dir) if results_dir is not None else common.RESULTS
+    if not successful_trials:
+        return None
+    summary_path = root / f"{model_name}_best.json"
+    scores_path = root / f"{model_name}_validation_scores.npy"
+    model_path = root / f"{model_name}_best_model.pkl"
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        config = summary["config"]
+        trial = int(config["trial"])
+        iteration = int(summary["best_iteration"])
+        measured = summary["best_validation"]
+        score = np.load(scores_path, allow_pickle=False)
+        successful = successful_trials.get(trial) if isinstance(successful_trials, dict) else (
+            {} if trial in successful_trials else None
+        )
+        if successful is None:
+            return None
+        if successful and abs(float(successful["pr_auc"]) - float(measured["pr_auc"])) > 1e-10:
+            return None
+        if successful and int(successful["best_iteration"]) != iteration:
+            return None
+        if score.ndim != 1 or len(score) != int(expected_score_rows):
+            return None
+        if not np.isfinite(score).all() or iteration < 1 or not np.isfinite(float(measured["pr_auc"])):
+            return None
+        with model_path.open("rb") as handle:
+            fitted = pickle.load(handle)
+        return (float(measured["pr_auc"]), config, fitted, score.astype(np.float32), iteration, measured)
+    except Exception:
+        # Any corrupt, incomplete, incompatible, or stale artifact is unsafe
+        # to resume from. The caller will rerun successful trials instead.
+        return None
+
+
 def fit_cat(config, numeric_train, cats_train, y_train, numeric_val, cats_val, y_val, prepared=None):
     from catboost import CatBoostClassifier, FeaturesData, Pool
     if prepared is None:
@@ -208,11 +251,20 @@ def search(model_name, trial_count):
     log_path = common.RESULTS / f"{model_name}_search.csv"
     fieldnames = ["model", "trial", "status", "pr_auc", "roc_auc", "best_iteration", "seconds",
                   "peak_rss_bytes", "config", "error"]
-    completed = set()
+    completed = {}
     if log_path.exists():
         with log_path.open(newline="", encoding="utf-8") as handle:
-            completed = {int(row["trial"]) for row in csv.DictReader(handle) if row["status"] == "SUCCEEDED"}
-    best = None
+            for row in csv.DictReader(handle):
+                if row["status"] == "SUCCEEDED":
+                    completed[int(row["trial"])] = row
+    best = restore_search_incumbent(model_name, completed, len(val["label"]))
+    if completed and best is None:
+        print("RESUME_INCUMBENT_RESTORE=FAILED; rerunning recorded successful trials", flush=True)
+        completed = {}
+    elif best is not None:
+        print(f"RESUME_INCUMBENT_RESTORE=SUCCEEDED trial={best[1]['trial']} pr_auc={best[0]:.8f}", flush=True)
+    else:
+        print("RESUME_INCUMBENT_RESTORE=NO_PRIOR_SUCCESSFUL_TRIALS", flush=True)
     with log_path.open("a", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         if handle.tell() == 0: writer.writeheader()
@@ -248,6 +300,8 @@ def search(model_name, trial_count):
                            error=f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}")
             row.update(seconds=time.time() - started, peak_rss_bytes=psutil.Process().memory_info().rss)
             writer.writerow(row); handle.flush(); print("TRIAL=" + json.dumps(row, default=str), flush=True)
+            if row["status"] == "SUCCEEDED":
+                completed[int(row["trial"])] = row
             gc.collect()
     if best is None:
         raise RuntimeError(f"no successful {model_name} trial")

@@ -1,0 +1,63 @@
+{
+  "artifact_bundle": "OPS V2 fourth evaluation evidence",
+  "evaluation_label": "FOURTH DESIGN EVALUATION",
+  "generated_by": "artifact inventory; does not access or score test data",
+  "artifacts": {
+    "host_models/xgboost_best.json": {
+      "bytes": 2701,
+      "sha256": "9250f94f2a69e01700bf68839b2ea6309a14b1f3bdf7eed1fbd545332ab11650"
+    },
+    "host_export/pretest_metadata.json": {
+      "bytes": 17628,
+      "sha256": "17390cb7c80a0293505d906a21a06274209c6bea9d3524f46c0eb7cfe008db89"
+    },
+    "host_export/test_metadata.json": {
+      "bytes": 17675,
+      "sha256": "09b7c2edf0d133a0fe1413f5e884c29c8f406ac3d165b78cf54f57f1d24c0a3b"
+    },
+    "fourth_design/test_results.json": {
+      "bytes": 5623,
+      "sha256": "036d23c255baf080e1fc4075d9169d5fe0bd3766a75bda0be2c6e06ab920aff7"
+    },
+    "fourth_design/xgboost_test_scores.npy": {
+      "bytes": 2096060,
+      "sha256": "81d1cfed815fef5b832ffe45987880777f397eda4ccd00170127e7b306c92b61"
+    },
+    "fourth_design/utc_lr_refit_test_scores.npy": {
+      "bytes": 2096060,
+      "sha256": "8ee21e7c68e87b0f7bbd1d486208f018212d46f5ddc2e17462ee25a703d08bb1"
+    },
+    "host_models/phase1_decision.json": {
+      "bytes": 536,
+      "sha256": "03be257b0a9bb1ee114e2e9f28246e35a16516b0d99be10ce3ac452c5cde3503"
+    },
+    "host_models/phase1_folds.json": {
+      "bytes": 2039,
+      "sha256": "b3eb1b969f7c915213a3f81e4ec03900a3b4359980f7d28e3b30c6ab31918037"
+    },
+    "host_models/phase1_validation_summary.json": {
+      "bytes": 13135,
+      "sha256": "e3762b5284981fbec00bbf9fb3db51b202f74ab7a1759dbd7eee7d67717bed3f"
+    },
+    "host_export/pretest_yarn.log": {
+      "bytes": 231671,
+      "sha256": "58150a727184ab2720af2783000c5d3f207de8f9507d487e3d61ae88a145136c"
+    },
+    "host_export/test_yarn_final.log": {
+      "bytes": 217892,
+      "sha256": "14bd1b797d4389391baf53f6861fbbf76aabbd3d83ac2bdb98d47579743ad581"
+    },
+    "fourth_design/final_host.log": {
+      "bytes": 3772,
+      "sha256": "b0da4bf062ca1ecf5ac28af7d9734896c8411c1525aad6fd12a9f003d7583613"
+    },
+    "frozen_ops_v2_config.json": {
+      "bytes": 830,
+      "sha256": "0a015024b9aa222eb3bb8d3a7a350e289d543f33d377b64985fa6d3eacf8d56e"
+    },
+    "frozen_ops_v2_config.complete.json": {
+      "bytes": 17310,
+      "sha256": "c987c7f52cbf4ebef163d2d02c49d8b52601f0012977135d95b42ed4fd9c4bc5"
+    }
+  }
+}

@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Bootstrap, rolling-origin, and gate evaluation for Phase 1 (never reads test)."""
+"""Validation and retrospective fold checks for Phase 1 (never reads test).
+
+The historical folds are not independent forward validation: the winning
+configuration was selected on the later Nov 25-Dec 3 validation period, and
+each fold holdout is also passed to early stopping. These checks must not
+authorize a future test evaluation.
+"""
 
 from __future__ import annotations
 
@@ -12,6 +18,7 @@ import host_common as common
 import phase1_host as phase1
 
 OUT = common.RESULTS
+FOLD_EVIDENCE_TYPE = "retrospective_robustness_check_not_independent_forward_validation"
 
 
 def json_write(name, value):
@@ -95,6 +102,10 @@ def main():
         lr_metrics = common.metrics(holdout["label"], lr_score)
         candidate_metrics = common.metrics(holdout["label"], candidate)
         folds.append({
+            "evidence_type": FOLD_EVIDENCE_TYPE,
+            "independent_forward_validation": False,
+            "holdout_used_for_early_stopping": True,
+            "winner_config_selected_on_later_validation_period": True,
             "fit_end": str(start - np.timedelta64(1, "D")), "validation_start": start_text,
             "validation_end": str(stop - np.timedelta64(1, "D")), "fit_rows": len(fit_ids),
             "validation_rows": len(hold_ids), "lr_pr_auc": lr_metrics["pr_auc"],
@@ -108,13 +119,20 @@ def main():
     gains = np.asarray([row["pr_auc_gain"] for row in folds])
     bootstrap = models[winner]["bootstrap_vs_frozen_utc_lr"]
     validation_gain = models[winner]["metrics"]["pr_auc"] - baseline["frozen_utc_lr"]["pr_auc"]
-    passed = bool(gains.mean() >= .003 and bootstrap["ci_95_low"] > 0 and validation_gain >= .002)
+    original_rule_passed = bool(gains.mean() >= .003 and bootstrap["ci_95_low"] > 0 and validation_gain >= .002)
+    validation_gate_passed = bool(bootstrap["ci_95_low"] > 0 and validation_gain >= .002)
     decision = {
         "winner": winner, "validation_gain_vs_frozen_utc_lr": validation_gain,
         "rolling_gain_mean": float(gains.mean()), "rolling_gain_std": float(gains.std(ddof=1)),
         "validation_bootstrap": bootstrap, "selection_margin_met": validation_gain >= .002,
-        "decision_rule_passed": passed,
-        "test_authorized_by_phase1_alone": passed,
+        "fold_evidence_type": FOLD_EVIDENCE_TYPE,
+        "folds_independent_forward_validation": False,
+        "fold_holdouts_used_for_early_stopping": True,
+        "original_historical_rule_passed": original_rule_passed,
+        "validation_gate_passed": validation_gate_passed,
+        "decision_rule_passed": False,
+        "test_authorized_by_phase1_alone": False,
+        "test_authorization_note": "Future test scoring requires genuinely nested chronological folds; the historical folds are retrospective checks.",
         "test_opened": False,
     }
     json_write("phase1_validation_summary.json", {"baseline": baseline, "models": models})

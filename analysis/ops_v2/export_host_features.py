@@ -30,6 +30,7 @@ CLEAN = "hdfs://master:9000/user/root/flights/clean"
 HOLIDAYS = "hdfs://master:9000/user/root/flights/reference/holidays.csv"
 LOCAL_ROOT = "/results/experiments/ml_redesign/ops_v2/host_export"
 HDFS_ROOT = "hdfs://master:9000/user/root/flights/experiments/ml_redesign/ops_v2/host_export"
+FROZEN_CONFIG = "/results/experiments/ml_redesign/ops_v2/frozen_ops_v2_config.json"
 VAL_START = "2024-11-25"
 TEST_START = "2024-12-04"
 OPS_PRIORS = {
@@ -203,6 +204,14 @@ def main():
         if config.scope == "pretest":
             source = clean.filter(F.col("FlightDate") < F.lit(TEST_START))
         else:
+            if not os.path.isfile(FROZEN_CONFIG):
+                raise RuntimeError(f"post-freeze export refused: missing frozen config {FROZEN_CONFIG}")
+            with open(FROZEN_CONFIG, encoding="utf-8") as frozen_file:
+                frozen = json.load(frozen_file)
+            if (not frozen.get("decisions_frozen") or not frozen.get("committed_before_test") or
+                    not frozen.get("test_authorized") or
+                    not (frozen.get("phase1_passed") or frozen.get("phase2_passed"))):
+                raise RuntimeError("post-freeze export refused: frozen config does not authorize test access")
             print("DECISIONS_FROZEN=1: opening test source for post-freeze export", flush=True)
             source = clean
         holidays = (spark.read.option("header", True).csv(HOLIDAYS)

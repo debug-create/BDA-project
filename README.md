@@ -93,4 +93,7 @@ docker exec master bash -lc 'spark-submit --master yarn --deploy-mode client /sr
 
 The final directory contains experiment/hyperparameter tables, validation and test metrics, confusion counts, baselines, ranking lift, holiday slices, threshold-transfer diagnostics, feature importance, frozen configuration, preprocessing metadata, and a run summary. HDFS stores the fitted preprocessing `PipelineModel`, Logistic Regression, Random Forest, and every historical-rate lookup table needed to reproduce feature construction.
 
-Raw CSV/Parquet, Docker volumes, HDFS data, model binaries, Spark logs, and generated result directories must not be committed. The tracked documentation contains the reproducible numerical summary and selected plots.
+Raw CSV/Parquet, Docker volumes, HDFS data, model binaries, and uncurated generated outputs must not be committed. The selected OPS V2 score arrays, metadata, checksums, and successful export/scoring logs below are an intentional handoff exception; the 609 MB feature Parquet and all unrelated run output remain outside Git. The tracked documentation contains the reproducible numerical summary and selected plots.
+## OPS V2 teammate handoff
+
+The Phase-1 fold protocol audit, complete frozen XGBoost configuration, fourth-evaluation outputs, successful YARN IDs/logs, test-export regeneration command, and timing/availability limitations are documented in [`docs/OPS_V2_ARTIFACTS.md`](docs/OPS_V2_ARTIFACTS.md), [`docs/OPS_V2_REPORT.md`](docs/OPS_V2_REPORT.md), and [`docs/ASOF_TZ_REPORT.md`](docs/ASOF_TZ_REPORT.md). The result files are retained under `results/experiments/ml_redesign/ops_v2/`; see [`artifact_manifest.json`](results/experiments/ml_redesign/ops_v2/artifact_manifest.json) for checksums.

@@ -2,9 +2,17 @@
 
 ## Evaluation boundary
 
-All model choices below were made from the train, validation, and four rolling-origin validation folds. The sealed test split was not read for Phase 1 or Phase 2. The freeze artifact was committed before the authorized final test export and evaluation. The one post-freeze run is complete and recorded below; its results did not change the frozen choice.
+The candidate search and primary model comparison used the train period and the Nov 25–Dec 3 validation period. The historical four earlier weekly folds are **retrospective robustness checks**, not independent forward-validation evidence: the winner was selected using the later validation period, and each fold's own holdout is supplied to early stopping before its score is reported. See “Fold-evidence audit” below. The sealed test split was not read for Phase 1 or Phase 2 selection. The freeze artifact was committed before the authorized final test export and evaluation. That fourth evaluation has already occurred and is recorded below; it is not authorization for another test run.
 
 ## Phase 1: boosted models
+
+### Fold-evidence audit
+
+The original rolling-fold calculation does not estimate independent forward performance. The Phase-1 winner/configuration was selected by PR-AUC on the later Nov 25–Dec 3 validation window. The reported October/November folds precede that window; therefore their outcomes have already informed the final candidate choice. In addition, `fit_xgb`/`fit_lgb`/`fit_cat` receive each fold holdout as the evaluation set for early stopping and then score that same holdout. This uses the scored block twice.
+
+Accordingly, the historical fold scores and the old `phase1_decision.json` “passed” status must be read as **retrospective robustness checks and a pass under the original rule**, not as independent rolling-origin validation or a valid stand-alone authorization for another test evaluation. The fourth test evaluation was already executed under the earlier freeze; this correction does not change or erase those observed outputs, but it limits what can be claimed about the Phase-1 gate. The maintained evaluator now marks folds `retrospective_robustness_check_not_independent_forward_validation` and never sets `test_authorized_by_phase1_alone=true`.
+
+A future independent gate requires nested chronological evaluation: for every outer fold, select features/hyperparameters and early stopping using only an inner chronological split strictly before the outer holdout; then fit the selected configuration on the permitted pre-holdout data and score the untouched outer block once. Model selection among outer-fold results must itself be performed without using the final reported outer block. Do not rerun the fourth evaluation to repair this design; use a new future test period after a new freeze.
 
 The accepted UTC-correct feature set (variant d, all 16 operations features) was used. Validation contains 173,549 rows with delayed-flight prevalence 0.17013.
 
@@ -45,6 +53,8 @@ The validation date-block bootstrap for DL minus XGBoost had mean -0.00143 and 9
 | Plain MLP | 0.29731 | 0.00683 |
 
 ## Frozen choice and limitations
+
+The complete standalone record is `results/experiments/ml_redesign/ops_v2/frozen_ops_v2_config.complete.json`. The initially committed `frozen_ops_v2_config.json` remains unchanged as the pretest decision artifact; the complete companion captures the specific XGBoost parameters and 387 boosting rounds previously available only in ignored host output.
 
 The final candidate is XGBoost, with UTC-correct variant d and all 16 operations features. The Phase-1 pass authorized the one final test evaluation; Phase 2 did not. The model is a ranking aid: validation top-decile precision is about 37%, not a reliable per-flight guarantee. Fold performance varies substantially by week, and the train-validation gap indicates overfitting risk. The completed test result is below; it did not change the model choice.
 
