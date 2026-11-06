@@ -1,5 +1,5 @@
 {
-  "display": {"step_digits":2,"percent_decimals":2},
+  "display": {"step_digits":2,"percent_decimals":2,"spark_percent_decimals":3},
   "meta": {
     "title": "Departure Board for Delays",
     "window": "01 Oct — 31 Dec 2024",
@@ -30,10 +30,29 @@
     {"label":"Not diverted","value":1765279,"note":"3,139 removed"},
     {"label":"Eligible target","value":1765279,"note":"binary ArrDel15"}
   ],
-  "season": {
-    "status": "complete",
-    "note": "Daily delay rates across the analysis window.",
-    "rates": [12,13,12,15,14,11,10,13,16,18,14,13,12,15,17,20,16,14,13,12,18,19,17,15,14,16,20,22,24,21,18,15,14,16,17,13,12,15,19,21,18,17,14,13,16,20,23,26,24,22,19,18,17,16,15,18,20,21,19,18,16,17,19,22,23,20,18,19,21,24,28,27,23,20,19,18,21,24,27,29,31,33,30,28,26,25,27,30,32,29,26,24]
+  "holidayAnalysis": {
+    "full_season": [
+      {"period":"Halloween","flights":17299,"delay_rate_pct":15.714,"cancellation_rate_pct":0.277},
+      {"period":"Thanksgiving week","flights":134698,"delay_rate_pct":16.728,"cancellation_rate_pct":0.136},
+      {"period":"Christmas/New Year period","flights":229198,"delay_rate_pct":26.799,"cancellation_rate_pct":1.125},
+      {"period":"Regular day","flights":1400287,"delay_rate_pct":14.574,"cancellation_rate_pct":0.732}
+    ],
+    "window_start": "2024-10-01",
+    "window_end": "2024-12-31",
+    "axis_dates": ["2024-10-31","2024-11-25","2024-12-20","2024-12-31"],
+    "daily": [
+      {"date":"2024-10-31","delay_rate_pct":15.714},
+      {"date":"2024-11-25","delay_rate_pct":14.164},{"date":"2024-11-26","delay_rate_pct":15.447},{"date":"2024-11-27","delay_rate_pct":16.168},{"date":"2024-11-28","delay_rate_pct":8.455},{"date":"2024-11-29","delay_rate_pct":13.316},{"date":"2024-11-30","delay_rate_pct":22.135},{"date":"2024-12-01","delay_rate_pct":22.928},
+      {"date":"2024-12-20","delay_rate_pct":35.219},{"date":"2024-12-21","delay_rate_pct":34.303},{"date":"2024-12-22","delay_rate_pct":22.661},{"date":"2024-12-23","delay_rate_pct":16.414},{"date":"2024-12-24","delay_rate_pct":26.689},{"date":"2024-12-25","delay_rate_pct":9.035},{"date":"2024-12-26","delay_rate_pct":30.302},{"date":"2024-12-27","delay_rate_pct":29.728},{"date":"2024-12-28","delay_rate_pct":37.889},{"date":"2024-12-29","delay_rate_pct":41.093},{"date":"2024-12-30","delay_rate_pct":18.148},{"date":"2024-12-31","delay_rate_pct":15.414}
+    ],
+    "full_daily": [
+      {"date":"2024-10-01","delay_rate_pct":11.058},{"date":"2024-10-02","delay_rate_pct":9.349},{"date":"2024-10-03","delay_rate_pct":14.407},{"date":"2024-10-04","delay_rate_pct":14.665},{"date":"2024-10-05","delay_rate_pct":11.467},{"date":"2024-10-06","delay_rate_pct":17.702},{"date":"2024-10-07","delay_rate_pct":17.016},{"date":"2024-10-08","delay_rate_pct":9.652},{"date":"2024-10-09","delay_rate_pct":7.863},{"date":"2024-10-10","delay_rate_pct":13.089},{"date":"2024-10-11","delay_rate_pct":18.257},{"date":"2024-10-12","delay_rate_pct":11.258},{"date":"2024-10-13","delay_rate_pct":14.309},{"date":"2024-10-14","delay_rate_pct":16.192},{"date":"2024-10-15","delay_rate_pct":10.748},{"date":"2024-10-16","delay_rate_pct":11.941},{"date":"2024-10-17","delay_rate_pct":17.817},{"date":"2024-10-18","delay_rate_pct":19.528},{"date":"2024-10-19","delay_rate_pct":10.936},{"date":"2024-10-20","delay_rate_pct":15.596},{"date":"2024-10-21","delay_rate_pct":11.456},{"date":"2024-10-22","delay_rate_pct":7.905},{"date":"2024-10-23","delay_rate_pct":9.064},{"date":"2024-10-24","delay_rate_pct":12.849},{"date":"2024-10-25","delay_rate_pct":14.244},{"date":"2024-10-26","delay_rate_pct":12.384},{"date":"2024-10-27","delay_rate_pct":15.825},{"date":"2024-10-28","delay_rate_pct":12.549},{"date":"2024-10-29","delay_rate_pct":7.413},{"date":"2024-10-30","delay_rate_pct":11.591},{"date":"2024-10-31","delay_rate_pct":15.714},{"date":"2024-11-01","delay_rate_pct":12.173},{"date":"2024-11-02","delay_rate_pct":10.578},{"date":"2024-11-03","delay_rate_pct":18.341},{"date":"2024-11-04","delay_rate_pct":16.016},{"date":"2024-11-05","delay_rate_pct":13.076},{"date":"2024-11-06","delay_rate_pct":16.321},{"date":"2024-11-07","delay_rate_pct":23.648},{"date":"2024-11-08","delay_rate_pct":21.008},{"date":"2024-11-09","delay_rate_pct":12.735},{"date":"2024-11-10","delay_rate_pct":11.578},{"date":"2024-11-11","delay_rate_pct":11.091},{"date":"2024-11-12","delay_rate_pct":7.782},{"date":"2024-11-13","delay_rate_pct":9.536},{"date":"2024-11-14","delay_rate_pct":11.942},{"date":"2024-11-15","delay_rate_pct":12.079},{"date":"2024-11-16","delay_rate_pct":8.882},{"date":"2024-11-17","delay_rate_pct":12.88},{"date":"2024-11-18","delay_rate_pct":14.546},{"date":"2024-11-19","delay_rate_pct":8.577},{"date":"2024-11-20","delay_rate_pct":13.493},{"date":"2024-11-21","delay_rate_pct":25.305},{"date":"2024-11-22","delay_rate_pct":21.129},{"date":"2024-11-23","delay_rate_pct":15.662},{"date":"2024-11-24","delay_rate_pct":14.907},{"date":"2024-11-25","delay_rate_pct":14.164},{"date":"2024-11-26","delay_rate_pct":15.447},{"date":"2024-11-27","delay_rate_pct":16.168},{"date":"2024-11-28","delay_rate_pct":8.455},{"date":"2024-11-29","delay_rate_pct":13.316},{"date":"2024-11-30","delay_rate_pct":22.135},{"date":"2024-12-01","delay_rate_pct":22.928},{"date":"2024-12-02","delay_rate_pct":21.814},{"date":"2024-12-03","delay_rate_pct":13.462},{"date":"2024-12-04","delay_rate_pct":20.005},{"date":"2024-12-05","delay_rate_pct":24.452},{"date":"2024-12-06","delay_rate_pct":18.983},{"date":"2024-12-07","delay_rate_pct":11.691},{"date":"2024-12-08","delay_rate_pct":13.333},{"date":"2024-12-09","delay_rate_pct":12.486},{"date":"2024-12-10","delay_rate_pct":16.419},{"date":"2024-12-11","delay_rate_pct":22.77},{"date":"2024-12-12","delay_rate_pct":19.396},{"date":"2024-12-13","delay_rate_pct":15.269},{"date":"2024-12-14","delay_rate_pct":13.911},{"date":"2024-12-15","delay_rate_pct":15.519},{"date":"2024-12-16","delay_rate_pct":18.965},{"date":"2024-12-17","delay_rate_pct":9.801},{"date":"2024-12-18","delay_rate_pct":20.469},{"date":"2024-12-19","delay_rate_pct":20.306},{"date":"2024-12-20","delay_rate_pct":35.219},{"date":"2024-12-21","delay_rate_pct":34.303},{"date":"2024-12-22","delay_rate_pct":22.661},{"date":"2024-12-23","delay_rate_pct":16.414},{"date":"2024-12-24","delay_rate_pct":26.689},{"date":"2024-12-25","delay_rate_pct":9.035},{"date":"2024-12-26","delay_rate_pct":30.302},{"date":"2024-12-27","delay_rate_pct":29.728},{"date":"2024-12-28","delay_rate_pct":37.889},{"date":"2024-12-29","delay_rate_pct":41.093},{"date":"2024-12-30","delay_rate_pct":18.148},{"date":"2024-12-31","delay_rate_pct":15.414}
+    ],
+    "holiday_bands": [
+      {"name":"Halloween","start":"2024-10-31","end":"2024-10-31"},
+      {"name":"Thanksgiving week","start":"2024-11-25","end":"2024-12-01"},
+      {"name":"Christmas/New Year period","start":"2024-12-20","end":"2024-12-31"}
+    ]
   },
   "models": [
     {"name":"XGBoost","generation":"G3","split":"TEST","role":"SELECTED","runtime":"HOST-SIDE","prauc":0.41980,"roc":0.70198,"topPrecision":0.52349,"lift":2.456},
