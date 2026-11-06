@@ -1,0 +1,113 @@
+{
+  "display": {"step_digits":2,"percent_decimals":2},
+  "meta": {
+    "title": "Departure Board for Delays",
+    "window": "01 Oct — 31 Dec 2024",
+    "reviewed": "05 Nov 2026",
+    "status": "FOURTH EVALUATION COMPLETE",
+    "source": "PROJECT_STATUS_REPORT.md · OPS_V2_REPORT.md",
+    "generation": "G3 OPS V2",
+    "scope": "TEST"
+  },
+  "overview": {
+    "rawRows": 1781482,
+    "eligibleRows": 1765279,
+    "dates": 92,
+    "airlines": 15,
+    "airports": 340,
+    "bestModel": "XGBoost",
+    "bestPrauc": 0.41980,
+    "question": "How do holiday periods align with delays, and how well can pre-departure signals rank the flights most at risk?"
+  },
+  "splits": [
+    {"name":"Train","start":"01 Oct","end":"24 Nov","flights":1067747,"prevalence":0.1374},
+    {"name":"Tuning window","start":"25 Nov","end":"03 Dec","flights":173549,"prevalence":0.1701},
+    {"name":"December test window","start":"04 Dec","end":"31 Dec","flights":523983,"prevalence":0.21318}
+  ],
+  "eligibility": [
+    {"label":"Raw flights","value":1781482,"note":"BTS Oct–Dec files"},
+    {"label":"Not cancelled","value":1768418,"note":"13,064 removed"},
+    {"label":"Not diverted","value":1765279,"note":"3,139 removed"},
+    {"label":"Eligible target","value":1765279,"note":"binary ArrDel15"}
+  ],
+  "season": {
+    "status": "complete",
+    "note": "Daily delay rates across the analysis window.",
+    "rates": [12,13,12,15,14,11,10,13,16,18,14,13,12,15,17,20,16,14,13,12,18,19,17,15,14,16,20,22,24,21,18,15,14,16,17,13,12,15,19,21,18,17,14,13,16,20,23,26,24,22,19,18,17,16,15,18,20,21,19,18,16,17,19,22,23,20,18,19,21,24,28,27,23,20,19,18,21,24,27,29,31,33,30,28,26,25,27,30,32,29,26,24]
+  },
+  "models": [
+    {"name":"XGBoost","generation":"G3","split":"TEST","role":"SELECTED","runtime":"HOST-SIDE","prauc":0.41980,"roc":0.70198,"topPrecision":0.52349,"lift":2.456},
+    {"name":"UTC Logistic Regression","generation":"G3","split":"TEST","role":"BASELINE","runtime":"YARN · MLLIB","prauc":0.40524,"roc":0.68708,"topPrecision":0.50134,"lift":2.352},
+    {"name":"Deep ensemble","generation":"G3","split":"VALIDATION","role":"COMPARISON","runtime":"HOST-SIDE","prauc":0.30414,"roc":0.66563,"topPrecision":0.37021,"lift":2.176},
+    {"name":"CatBoost","generation":"G3","split":"VALIDATION","role":"CANDIDATE","runtime":"HOST-SIDE","prauc":0.30118,"roc":0.66442,"topPrecision":0.36860,"lift":2.167}
+  ],
+  "thresholds": [
+    {"threshold":0.2,"precision":0.29,"recall":0.91,"f1":0.44,"flagged":0.72},
+    {"threshold":0.3,"precision":0.34,"recall":0.79,"f1":0.48,"flagged":0.49},
+    {"threshold":0.4,"precision":0.41,"recall":0.63,"f1":0.50,"flagged":0.33},
+    {"threshold":0.5,"precision":0.48,"recall":0.46,"f1":0.47,"flagged":0.20},
+    {"threshold":0.6,"precision":0.55,"recall":0.29,"f1":0.38,"flagged":0.11}
+  ],
+  "slices": [
+    {"name":"Christmas / New Year","flights":225777,"prevalence":0.26799,"lr":0.47308,"xgb":0.48138,"unseen":true},
+    {"name":"Regular day","flights":298206,"prevalence":0.17169,"lr":0.30762,"xgb":0.33147,"unseen":false}
+  ],
+  "importance": [
+    {"name":"Operations state","value":0.09052},
+    {"name":"Recent history","value":0.03419},
+    {"name":"Categoricals","value":0.02002},
+    {"name":"Schedule fields","value":0.00362},
+    {"name":"Demand","value":0.00274},
+    {"name":"Interactions","value":0.00140}
+  ],
+  "holidayPeriods": [
+    {"name":"Halloween","dates":"28 Oct — 03 Nov","split":"TRAIN","rate":0.151,"flights":127466},
+    {"name":"Thanksgiving week","dates":"25 Nov — 03 Dec","split":"VALIDATION","rate":0.1701,"flights":173549},
+    {"name":"Christmas / New Year","dates":"18 — 31 Dec","split":"TEST","rate":0.26799,"flights":225777}
+  ],
+  "pipeline": [
+    {"name":"Raw CSV","detail":"BTS monthly files","path":"/flights/raw"},
+    {"name":"HDFS","detail":"distributed storage","path":"/user/root/flights"},
+    {"name":"Spark SQL","detail":"clean + holidays","path":"src/01_clean.py"},
+    {"name":"Parquet","detail":"typed clean rows","path":"/flights/clean"},
+    {"name":"MLlib + host","detail":"completed evaluations","path":"src/03_ml.py"},
+    {"name":"Results","detail":"static evidence","path":"/results/experiments"}
+  ],
+  "cluster": [
+    {"name":"master","roles":"NameNode · ResourceManager · Spark client","state":"RECORDED"},
+    {"name":"worker1","roles":"DataNode · NodeManager","state":"RUNNING"},
+    {"name":"worker2","roles":"DataNode · NodeManager","state":"RUNNING"}
+  ],
+  "clusterSnapshot": {
+    "captured_on": "05 Nov 2026",
+    "hdfs_paths": [
+      "/user/root/flights/clean",
+      "/user/root/flights/reference/holidays.csv",
+      "/user/root/flights/experiments/ml_redesign/ops_v2/host_export/test"
+    ],
+    "spark_settings": [
+      {"label":"Deploy mode","value":"YARN · client"},
+      {"label":"Executors","value":"2 × 1 core"},
+      {"label":"Executor memory","value":"512 MB"},
+      {"label":"Shuffle partitions","value":"48"},
+      {"label":"HDFS health","value":"HEALTHY"},
+      {"label":"Replication","value":"2"}
+    ]
+  },
+  "holidayBreakdowns": {
+    "departureHour": [13,12,11,10,10,11,13,15,17,19,21,23,24,25,23,22,21,23,25,24,22,19,17,15],
+    "airline": []
+  },
+  "evidence": [
+    {"claim":"Eligible flights after exclusions","value":"1,765,279","source":"ACTUAL_DATA_ML_RESULTS.md","scope":"CLUSTER RUN","status":"VERIFIED"},
+    {"claim":"Fourth-design XGBoost test PR-AUC","value":"0.41980","source":"OPS_V2_REPORT.md","scope":"TEST · G3","status":"VERIFIED"},
+    {"claim":"XGBoost top-decile lift","value":"2.456×","source":"OPS_V2_REPORT.md","scope":"TEST · G3","status":"VERIFIED"},
+    {"claim":"December model comparison","value":"Completed","source":"OPS_V2_REPORT.md","scope":"DECEMBER TEST · G3","status":"REPORTED"}
+  ],
+  "viva": [
+    {"q":"Why use PR-AUC?","a":"Delayed flights are the minority class. PR-AUC keeps attention on precision and recall, with prevalence shown beside it."},
+    {"q":"Did holidays cause the delays?","a":"No causal claim is made. Holiday windows overlap with weather, schedule and network conditions; the comparisons are descriptive associations."},
+    {"q":"Why is Christmas missing from training?","a":"The chronological split ends training on 24 November. Christmas/New Year appears only in the held-out test window."},
+    {"q":"Is this a live predictor?","a":"No. This site reports completed batch results. The repository does not serve per-flight predictions."}
+  ]
+}

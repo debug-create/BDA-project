@@ -1,0 +1,62 @@
+{
+  "display": {
+    "auc_decimals": 3,
+    "metric_decimals": 5,
+    "percent_decimals": 2,
+    "lift_decimals": 3
+  },
+  "runs": [
+    {
+      "id": "ops_v2_xgboost_december",
+      "model": "XGBoost",
+      "role": "selected",
+      "split": "test",
+      "executed_on": "host_side",
+      "auc_roc": 0.70198,
+      "auc_pr": 0.41980,
+      "prevalence": 0.21318,
+      "top_10_precision": 0.52349,
+      "top_10_recall": 0.24556,
+      "top_10_lift": 2.456,
+      "curves": null,
+      "confusion": null
+    },
+    {
+      "id": "ops_v2_utc_lr_december",
+      "model": "UTC Logistic Regression",
+      "role": "reference",
+      "split": "test",
+      "executed_on": "yarn_mllib",
+      "auc_roc": 0.68708,
+      "auc_pr": 0.40524,
+      "prevalence": 0.21318,
+      "top_10_precision": 0.50134,
+      "top_10_recall": 0.23517,
+      "top_10_lift": 2.352,
+      "curves": null,
+      "confusion": null
+    }
+  ],
+  "ranking": [
+    {"target_fraction": 0.10, "precision": 0.52349, "recall": 0.24556, "lift": 2.456}
+  ],
+  "thresholds": [
+    {"threshold":0.2,"precision":0.29,"recall":0.91,"flagged":0.72},
+    {"threshold":0.3,"precision":0.34,"recall":0.79,"flagged":0.49},
+    {"threshold":0.4,"precision":0.41,"recall":0.63,"flagged":0.33},
+    {"threshold":0.5,"precision":0.48,"recall":0.46,"flagged":0.20},
+    {"threshold":0.6,"precision":0.55,"recall":0.29,"flagged":0.11}
+  ],
+  "feature_importance": [
+    {"name":"Operations state","value":0.09052},
+    {"name":"Recent history","value":0.03419},
+    {"name":"Categoricals","value":0.02002},
+    {"name":"Schedule fields","value":0.00362},
+    {"name":"Demand","value":0.00274},
+    {"name":"Interactions","value":0.00140}
+  ],
+  "holiday_slices": [
+    {"name":"Christmas / New Year","flights":225777,"prevalence":0.26799,"auc_pr":0.48138},
+    {"name":"Regular days","flights":298206,"prevalence":0.17169,"auc_pr":0.33147}
+  ]
+}
